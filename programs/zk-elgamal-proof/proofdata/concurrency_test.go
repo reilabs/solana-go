@@ -8,10 +8,11 @@ import (
 )
 
 func TestConcurrentProofGeneration(t *testing.T) {
+	const N = 200
 	kp := zktest.GenKeyPair(t)
 	var wg sync.WaitGroup
-	errs := make(chan error, 8)
-	for i := 0; i < 8; i++ {
+	errs := make(chan error, N)
+	for i := 0; i < N; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

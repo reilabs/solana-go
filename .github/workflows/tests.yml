@@ -34,5 +34,5 @@ jobs:
         shell: bash
         run: |
           go test ./programs/zk-elgamal-proof/... -race -count=1
-          # Repeatedly race-check 8 concurrent goroutines generating proofs.
+          # Repeatedly race-check N=200 concurrent goroutines generating proofs.
           go test ./programs/zk-elgamal-proof/proofdata -race -run TestConcurrentProofGeneration -count=20

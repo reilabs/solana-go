@@ -32,10 +32,18 @@ var (
 	initErr      error
 	wasmRuntime  wazero.Runtime
 	wasmCompiled wazero.CompiledModule
+	// instancePool holds poolSize wasm instances, each initialised to nil
 	instancePool = make(chan api.Module, poolSize)
 )
 
-func initialize() {
+// init seeds the pool with poolSize nil instances
+func init() {
+	for i := 0; i < poolSize; i++ {
+		instancePool <- nil
+	}
+}
+
+func initWasmRuntime() {
 	ctx := context.Background()
 	rt := wazero.NewRuntime(ctx)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, rt); err != nil {
@@ -53,16 +61,31 @@ func initialize() {
 	wasmCompiled = compiled
 }
 
+// acquireInstance takes slot from pool, instantiating slot if nil.
 func acquireInstance() (api.Module, error) {
-	initOnce.Do(initialize)
+	initOnce.Do(initWasmRuntime)
 	if initErr != nil {
 		return nil, initErr
 	}
-	select {
-	case inst := <-instancePool:
+	if inst := <-instancePool; inst != nil {
+		// Use instantiated instance from pool.
 		return inst, nil
-	default:
 	}
+	// Empty slot: build a new instance.
+	inst, err := initInstance()
+	if err != nil {
+		instancePool <- nil
+		return nil, err
+	}
+	return inst, nil
+}
+
+// releaseInstance hands the slot back to the pool.
+func releaseInstance(inst api.Module) {
+	instancePool <- inst
+}
+
+func initInstance() (mod api.Module, err error) {
 	ctx := context.Background()
 
 	// Configure as anonymous library module.
@@ -70,32 +93,31 @@ func acquireInstance() (api.Module, error) {
 		WithName("").
 		WithStartFunctions().             // WASI reactor: suppress _start
 		WithRandSource(cryptorand.Reader) // Randomness source must be set explicitly, wazero's default uses fixed seed
-	mod, err := wasmRuntime.InstantiateModule(ctx, wasmCompiled, cfg)
+	mod, err = wasmRuntime.InstantiateModule(ctx, wasmCompiled, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("zk: instantiating bridge module: %w", err)
 	}
-	if initFn := mod.ExportedFunction("_initialize"); initFn != nil {
-		if _, err := initFn.Call(ctx); err != nil {
+	// Any validation failure must close the instantiated module.
+	defer func() {
+		if err != nil {
 			mod.Close(ctx)
-			return nil, fmt.Errorf("zk: running module _initialize: %w", err)
+			mod = nil
+		}
+	}()
+
+	// Run the guest program's _initialize function.
+	if initFn := mod.ExportedFunction("_initialize"); initFn != nil {
+		if _, err = initFn.Call(ctx); err != nil {
+			return mod, fmt.Errorf("zk: running module _initialize: %w", err)
 		}
 	}
 	// Make sure that expected memory functions are exported by the WASM ABI
 	for _, name := range []string{ALLOC_FUNC, FREE_FUNC} {
 		if mod.ExportedFunction(name) == nil {
-			mod.Close(ctx)
-			return nil, fmt.Errorf("zk: required export %q not found", name)
+			return mod, fmt.Errorf("zk: required export %q not found", name)
 		}
 	}
 	return mod, nil
-}
-
-func releaseInstance(inst api.Module) {
-	select {
-	case instancePool <- inst:
-	default:
-		inst.Close(context.Background())
-	}
 }
 
 // span is one guest allocation owned by a frame.
@@ -110,8 +132,7 @@ type frame struct {
 	poisoned bool
 }
 
-// acquire binds the frame to a pooled instance, instantiating a fresh one if
-// the pool is empty. Every acquired frame must be released.
+// acquire binds the frame to a pooled instance, blocking until a free-slot is available.
 func (f *frame) acquire() error {
 	inst, err := acquireInstance()
 	if err != nil {
@@ -141,7 +162,7 @@ func (f *frame) release() {
 	}
 	if f.poisoned {
 		f.inst.Close(context.Background())
-		return
+		f.inst = nil
 	}
 	releaseInstance(f.inst)
 }
