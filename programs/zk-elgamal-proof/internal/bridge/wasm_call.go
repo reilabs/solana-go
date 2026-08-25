@@ -100,10 +100,7 @@ func (f *frame) acquireInstance() error {
 
 // releaseInstance releases the call's module instance back to the pool.
 func (f *frame) releaseInstance() {
-	if !f.poisoned {
-		// Return initialized instance to pool, scrub and free memory first.
-		f.scrubAndFreeMemory()
-	}
+	f.scrubAndFreeMemory()
 	if f.poisoned {
 		// Close the instance, feed nil slot to pool.
 		f.inst.Close(context.Background())
@@ -113,6 +110,10 @@ func (f *frame) releaseInstance() {
 }
 
 func (f *frame) scrubAndFreeMemory() {
+	mem := f.inst.Memory()
+	if mem == nil {
+		return
+	}
 	free := f.inst.ExportedFunction(FREE_FUNC)
 	ctx := context.Background()
 	var zeros []byte
@@ -120,10 +121,13 @@ func (f *frame) scrubAndFreeMemory() {
 		if int(a.size) > len(zeros) {
 			zeros = make([]byte, a.size)
 		}
-		f.inst.Memory().Write(a.ptr, zeros[:a.size])
+
+		mem.Write(a.ptr, zeros[:a.size])
+		if f.poisoned {
+			continue
+		}
 		if _, err := free.Call(ctx, uint64(a.ptr)); err != nil {
 			f.poisoned = true
-			break
 		}
 	}
 }
