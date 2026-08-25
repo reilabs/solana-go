@@ -1,6 +1,11 @@
 package encryption
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var ErrZeroSecretKey = errors.New("zk: ElGamal secret key is zero")
 
 type ElGamalKeypair struct {
 	Pubkey ElGamalPubkey
@@ -8,6 +13,9 @@ type ElGamalKeypair struct {
 }
 
 func (kp *ElGamalKeypair) MarshalBinary() ([]byte, error) {
+	if kp.Secret.isZero() {
+		return nil, ErrZeroSecretKey
+	}
 	out := make([]byte, 0, 64)
 	out = append(out, kp.Pubkey[:]...)
 	return append(out, kp.Secret[:]...), nil
@@ -28,7 +36,21 @@ func (pk ElGamalPubkey) MarshalBinary() ([]byte, error) { return copyOf(pk[:]), 
 
 type ElGamalSecretKey [32]byte
 
-func (sk ElGamalSecretKey) MarshalBinary() ([]byte, error) { return copyOf(sk[:]), nil }
+func (sk ElGamalSecretKey) MarshalBinary() ([]byte, error) {
+	if sk.isZero() {
+		return nil, ErrZeroSecretKey
+	}
+	return copyOf(sk[:]), nil
+}
+
+func (sk ElGamalSecretKey) isZero() bool {
+	for _, b := range sk {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
 
 // ElGamalCiphertext is of form [Pedersen commitment, decrypt handle].
 type ElGamalCiphertext [64]byte
