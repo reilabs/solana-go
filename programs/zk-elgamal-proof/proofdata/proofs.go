@@ -1,7 +1,6 @@
 package proofdata
 
 import (
-	"encoding/binary"
 	"fmt"
 
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
@@ -11,17 +10,13 @@ import (
 // NewPubkeyValidityProofData proves knowledge of the secret key for the
 // keypair's public key.
 func NewPubkeyValidityProofData(kp *encryption.ElGamalKeypair) (*PubkeyValidityProofData, error) {
-	kb := kp.Bytes()
-	defer bridge.Zeroize(kb)
-	return invokeProof[PubkeyValidityProofData]("proof_pubkey_validity", kb)
+	return invokeProof[PubkeyValidityProofData]("proof_pubkey_validity", kp)
 }
 
 // NewZeroCiphertextProofData proves that ct encrypts zero under the keypair's
 // public key.
 func NewZeroCiphertextProofData(kp *encryption.ElGamalKeypair, ct encryption.ElGamalCiphertext) (*ZeroCiphertextProofData, error) {
-	kb := kp.Bytes()
-	defer bridge.Zeroize(kb)
-	return invokeProof[ZeroCiphertextProofData]("proof_zero_ciphertext", kb, ct[:])
+	return invokeProof[ZeroCiphertextProofData]("proof_zero_ciphertext", kp, ct)
 }
 
 // NewCiphertextCommitmentEqualityProofData proves that ct and commitment
@@ -33,10 +28,8 @@ func NewCiphertextCommitmentEqualityProofData(
 	opening encryption.PedersenOpening,
 	amount uint64,
 ) (*CiphertextCommitmentEqualityProofData, error) {
-	kb := kp.Bytes()
-	defer bridge.Zeroize(kb)
 	return invokeProof[CiphertextCommitmentEqualityProofData]("proof_ciphertext_commitment_equality",
-		kb, ct[:], commitment[:], opening[:], amount)
+		kp, ct, commitment, opening, bridge.Scalar(amount))
 }
 
 // NewCiphertextCiphertextEqualityProofData proves that firstCt (under the
@@ -50,10 +43,8 @@ func NewCiphertextCiphertextEqualityProofData(
 	secondOpening encryption.PedersenOpening,
 	amount uint64,
 ) (*CiphertextCiphertextEqualityProofData, error) {
-	kb := firstKeypair.Bytes()
-	defer bridge.Zeroize(kb)
 	return invokeProof[CiphertextCiphertextEqualityProofData]("proof_ciphertext_ciphertext_equality",
-		kb, secondPubkey[:], firstCt[:], secondCt[:], secondOpening[:], amount)
+		firstKeypair, secondPubkey, firstCt, secondCt, secondOpening, bridge.Scalar(amount))
 }
 
 // NewPercentageWithCapProofData proves a fee computation.
@@ -63,9 +54,9 @@ func NewPercentageWithCapProofData(
 	claimedCommitment encryption.PedersenCommitment, claimedOpening encryption.PedersenOpening, maxValue uint64,
 ) (*PercentageWithCapProofData, error) {
 	return invokeProof[PercentageWithCapProofData]("proof_percentage_with_cap",
-		percentageCommitment[:], percentageOpening[:], percentageAmount,
-		deltaCommitment[:], deltaOpening[:], deltaAmount,
-		claimedCommitment[:], claimedOpening[:], maxValue)
+		percentageCommitment, percentageOpening, bridge.Scalar(percentageAmount),
+		deltaCommitment, deltaOpening, bridge.Scalar(deltaAmount),
+		claimedCommitment, claimedOpening, bridge.Scalar(maxValue))
 }
 
 // NewBatchedRangeProofU64Data proves that each committed amount fits in its bit length; the bit lengths must sum to 64.
@@ -102,16 +93,10 @@ func batchedRangeProof[T any, P interface {
 	if sum != totalBits {
 		return nil, fmt.Errorf("zk: batched range proof bit lengths sum to %d, want %d", sum, totalBits)
 	}
-	commitmentBytes := make([]byte, 0, n*32)
-	openingBytes := make([]byte, 0, n*32)
-	amountBytes := make([]byte, n*8)
-	for i := range n {
-		commitmentBytes = append(commitmentBytes, commitments[i][:]...)
-		openingBytes = append(openingBytes, openings[i][:]...)
-		binary.LittleEndian.PutUint64(amountBytes[i*8:], amounts[i])
-	}
 	return invokeProof[T, P](export,
-		uint64(n), commitmentBytes, amountBytes, []byte(bitLengths), openingBytes)
+		bridge.Scalar(n),
+		bridge.Slice[encryption.PedersenCommitment](commitments), bridge.U64s(amounts),
+		bridge.Bytes(bitLengths), bridge.Slice[encryption.PedersenOpening](openings))
 }
 
 // NewGroupedCiphertext2HandlesValidityProofData proves that the grouped ciphertext is a valid encryption of amount under both public keys.
@@ -122,7 +107,7 @@ func NewGroupedCiphertext2HandlesValidityProofData(
 	opening encryption.PedersenOpening,
 ) (*GroupedCiphertext2HandlesValidityProofData, error) {
 	return invokeProof[GroupedCiphertext2HandlesValidityProofData]("proof_grouped_ciphertext_2_handles_validity",
-		concatPubkeys2(pubkeys), grouped[:], amount, opening[:])
+		bridge.Slice[encryption.ElGamalPubkey](pubkeys[:]), grouped, bridge.Scalar(amount), opening)
 }
 
 // NewGroupedCiphertext3HandlesValidityProofData proves that the grouped
@@ -134,7 +119,7 @@ func NewGroupedCiphertext3HandlesValidityProofData(
 	opening encryption.PedersenOpening,
 ) (*GroupedCiphertext3HandlesValidityProofData, error) {
 	return invokeProof[GroupedCiphertext3HandlesValidityProofData]("proof_grouped_ciphertext_3_handles_validity",
-		concatPubkeys3(pubkeys), grouped[:], amount, opening[:])
+		bridge.Slice[encryption.ElGamalPubkey](pubkeys[:]), grouped, bridge.Scalar(amount), opening)
 }
 
 // NewBatchedGroupedCiphertext2HandlesValidityProofData proves validity of a
@@ -147,7 +132,7 @@ func NewBatchedGroupedCiphertext2HandlesValidityProofData(
 	openingLo, openingHi encryption.PedersenOpening,
 ) (*BatchedGroupedCiphertext2HandlesValidityProofData, error) {
 	return invokeProof[BatchedGroupedCiphertext2HandlesValidityProofData]("proof_batched_grouped_ciphertext_2_handles_validity",
-		concatPubkeys2(pubkeys), groupedLo[:], groupedHi[:], amountLo, amountHi, openingLo[:], openingHi[:])
+		bridge.Slice[encryption.ElGamalPubkey](pubkeys[:]), groupedLo, groupedHi, bridge.Scalar(amountLo), bridge.Scalar(amountHi), openingLo, openingHi)
 }
 
 // NewBatchedGroupedCiphertext3HandlesValidityProofData proves validity of a
@@ -161,7 +146,7 @@ func NewBatchedGroupedCiphertext3HandlesValidityProofData(
 	openingLo, openingHi encryption.PedersenOpening,
 ) (*BatchedGroupedCiphertext3HandlesValidityProofData, error) {
 	return invokeProof[BatchedGroupedCiphertext3HandlesValidityProofData]("proof_batched_grouped_ciphertext_3_handles_validity",
-		concatPubkeys3(pubkeys), groupedLo[:], groupedHi[:], amountLo, amountHi, openingLo[:], openingHi[:])
+		bridge.Slice[encryption.ElGamalPubkey](pubkeys[:]), groupedLo, groupedHi, bridge.Scalar(amountLo), bridge.Scalar(amountHi), openingLo, openingHi)
 }
 
 // invokeProof calls a proof-generation export and parses the pod bytes it
@@ -169,30 +154,10 @@ func NewBatchedGroupedCiphertext3HandlesValidityProofData(
 func invokeProof[T any, P interface {
 	*T
 	ProofData
-}](name string, parts ...any) (*T, error) {
-	out, err := bridge.InvokeWith(name, parts...)
+}](name string, parts ...bridge.Arg) (*T, error) {
+	d, err := bridge.InvokeWith[T, P](name, parts...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", name, err)
 	}
-	d := new(T)
-	if err := readFields(out, P(d).fields()...); err != nil {
-		return nil, err
-	}
-	return d, nil
-}
-
-func concatPubkeys2(pubkeys [2]encryption.ElGamalPubkey) []byte {
-	out := make([]byte, 0, 64)
-	for i := range pubkeys {
-		out = append(out, pubkeys[i][:]...)
-	}
-	return out
-}
-
-func concatPubkeys3(pubkeys [3]encryption.ElGamalPubkey) []byte {
-	out := make([]byte, 0, 96)
-	for i := range pubkeys {
-		out = append(out, pubkeys[i][:]...)
-	}
-	return out
+	return &d, nil
 }

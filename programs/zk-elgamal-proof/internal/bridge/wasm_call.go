@@ -3,6 +3,7 @@ package bridge
 import (
 	"context"
 	_ "embed"
+	"encoding"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -12,15 +13,36 @@ import (
 	zk "github.com/gagliardetto/solana-go/programs/zk-elgamal-proof"
 )
 
-// InvokeStatus is InvokeWith for exports that return only a status code.
-func InvokeStatus(name string, parts ...any) error {
-	_, err := InvokeWith(name, parts...)
+// decoder is a pointer to T that can decode result bytes.
+type decoder[T any] interface {
+	*T
+	encoding.BinaryUnmarshaler
+}
+
+// InvokeWith calls the named export and decodes its result into a T.
+// UnmarshalBinary must copy: the result buffer is scrubbed after decoding.
+func InvokeWith[T any, PT decoder[T]](name string, parts ...Arg) (T, error) {
+	var v T
+	out, err := invoke(name, parts...)
+	if err != nil {
+		return v, err
+	}
+	defer zeroize(out)
+	if err := PT(&v).UnmarshalBinary(out); err != nil {
+		return v, err
+	}
+	return v, nil
+}
+
+// InvokeStatus is invoke for exports that return only a status code.
+func InvokeStatus(name string, parts ...Arg) error {
+	_, err := invoke(name, parts...)
 	return err
 }
 
-// InvokeWith borrows an instance, marshals parts into export arguments, calls the named export,
+// invoke borrows an instance, marshals parts into export arguments, calls the named export,
 // and copies out its result.
-func InvokeWith(name string, parts ...any) ([]byte, error) {
+func invoke(name string, parts ...Arg) ([]byte, error) {
 	f := &frame{}
 	if err := f.acquireInstance(); err != nil {
 		return nil, err
@@ -47,35 +69,11 @@ func InvokeWith(name string, parts ...any) ([]byte, error) {
 	return f.decodeResult(fn, res[0])
 }
 
-// CopyOut copies a guest result into dst, rejecting results whose length does
-// not match exactly.
-func CopyOut(dst, out []byte, err error) error {
-	if err != nil {
-		return err
-	}
-	if len(out) != len(dst) {
-		return fmt.Errorf("zk: guest returned %d bytes, want %d", len(out), len(dst))
-	}
-	copy(dst, out)
-	return nil
-}
-
-// Zeroize clears a transient buffer holding secret material.
-func Zeroize(b []byte) {
+// zeroize clears a transient buffer holding secret material.
+func zeroize(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
-}
-
-// ToAmount decodes a guest result holding a little-endian u64 amount.
-func ToAmount(out []byte, err error) (uint64, error) {
-	if err != nil {
-		return 0, err
-	}
-	if len(out) != 8 {
-		return 0, fmt.Errorf("zk: guest returned %d bytes, want 8", len(out))
-	}
-	return binary.LittleEndian.Uint64(out), nil
 }
 
 // span is one guest allocation owned by a frame.
@@ -182,24 +180,80 @@ func (f *frame) decodeResult(fn api.Function, raw uint64) ([]byte, error) {
 	return out, nil
 }
 
-// buildArgs writes each []byte part into guest memory (appending its pointer
-// to the argument list) and passes uint64 parts through as-is, preserving
-// order.
-func buildArgs(f *frame, parts ...any) ([]uint64, error) {
+// buildArgs marshals each wasm call argument into guest memory.
+func buildArgs(f *frame, parts ...Arg) ([]uint64, error) {
 	args := make([]uint64, 0, len(parts))
 	for _, part := range parts {
-		switch v := part.(type) {
-		case []byte:
-			ptr, err := f.write(v)
-			if err != nil {
-				return nil, err
-			}
-			args = append(args, ptr)
-		case uint64:
-			args = append(args, v)
-		default:
-			return nil, fmt.Errorf("zk: unsupported argument type %T", part)
+		if s, ok := part.(Scalar); ok {
+			args = append(args, uint64(s))
+			continue
 		}
+		b, err := part.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		ptr, err := f.write(b)
+		zeroize(b)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, ptr)
 	}
 	return args, nil
+}
+
+// Arg is a value that can cross into a wasm call
+type Arg interface {
+	MarshalBinary() ([]byte, error)
+}
+
+// Scalar is an integer passed directly as a wasm argument, and the decoded
+// form of an 8-byte little-endian result. Use U64s for a u64 sequence that
+// crosses as a buffer.
+type Scalar uint64
+
+// MarshalBinary makes Scalar an Arg. A Scalar is never marshaled: it is
+// passed as an integer argument, so reaching here is a misuse.
+func (s Scalar) MarshalBinary() ([]byte, error) {
+	return nil, errors.New("zk: Scalar crosses as an integer argument, not a buffer; use U64s for a u64 buffer")
+}
+
+func (s *Scalar) UnmarshalBinary(b []byte) error {
+	if len(b) != 8 {
+		return fmt.Errorf("zk: guest returned %d bytes, want 8", len(b))
+	}
+	*s = Scalar(binary.LittleEndian.Uint64(b))
+	return nil
+}
+
+type U64s []uint64
+
+func (s U64s) MarshalBinary() ([]byte, error) {
+	out := make([]byte, len(s)*8)
+	for i, v := range s {
+		binary.LittleEndian.PutUint64(out[i*8:], v)
+	}
+	return out, nil
+}
+
+// Bytes marshals an already-serialized buffer. MarshalBinary copies, so the
+// scrub after the guest write cannot reach the caller's slice.
+type Bytes []byte
+
+func (b Bytes) MarshalBinary() ([]byte, error) { return append([]byte(nil), b...), nil }
+
+// Slice marshals as the concatenation of its elements' marshalings.
+type Slice[E encoding.BinaryMarshaler] []E
+
+func (s Slice[E]) MarshalBinary() ([]byte, error) {
+	var out []byte
+	for i := range s {
+		b, err := s[i].MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, b...)
+		zeroize(b)
+	}
+	return out, nil
 }

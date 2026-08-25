@@ -1,8 +1,6 @@
 package confidential
 
 import (
-	"fmt"
-
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/bridge"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
@@ -239,17 +237,7 @@ func feeDelta(
 	feeCommitment encryption.PedersenCommitment, feeOpening encryption.PedersenOpening,
 	feeRateBasisPoints uint16,
 ) (encryption.PedersenCommitment, encryption.PedersenOpening, error) {
-	var commitment encryption.PedersenCommitment
-	var opening encryption.PedersenOpening
-	out, err := bridge.InvokeWith("pedersen_fee_delta",
-		combinedCommitment[:], combinedOpening[:], feeCommitment[:], feeOpening[:], uint64(feeRateBasisPoints))
-	if err != nil {
-		return commitment, opening, err
-	}
-	if len(out) != 64 {
-		return commitment, opening, fmt.Errorf("zk: guest returned %d bytes, want 64", len(out))
-	}
-	copy(commitment[:], out[:32])
-	copy(opening[:], out[32:64])
-	return commitment, opening, nil
+	pair, err := bridge.InvokeWith[encryption.PedersenCommitmentOpening]("pedersen_fee_delta",
+		combinedCommitment, combinedOpening, feeCommitment, feeOpening, bridge.Scalar(feeRateBasisPoints))
+	return pair.Commitment, pair.Opening, err
 }

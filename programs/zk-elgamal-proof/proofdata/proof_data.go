@@ -1,6 +1,7 @@
 package proofdata
 
 import (
+	"encoding"
 	"encoding/binary"
 	"fmt"
 
@@ -16,13 +17,15 @@ type ProofData interface {
 	Bytes() []byte
 	// Verify checks the proof against its context data.
 	Verify() error
+	// UnmarshalBinary parses the pod serialization produced by Bytes.
+	encoding.BinaryUnmarshaler
 
 	// fields lists the pod fields in serialization order.
 	fields() [][]byte
 }
 
 func verifyProofData(p ProofData) error {
-	return bridge.InvokeStatus("zk_verify_proof", uint64(p.ProofType()), p.Bytes())
+	return bridge.InvokeStatus("zk_verify_proof", bridge.Scalar(p.ProofType()), bridge.Bytes(p.Bytes()))
 }
 
 // Pod sigma and range proofs, sized like their Rust counterparts.
@@ -63,6 +66,9 @@ func (p *ZeroCiphertextProofData) fields() [][]byte {
 func (p *ZeroCiphertextProofData) ProofType() ProofType { return ProofTypeZeroCiphertext }
 func (p *ZeroCiphertextProofData) Bytes() []byte        { return concatFields(p.fields()...) }
 func (p *ZeroCiphertextProofData) Verify() error        { return verifyProofData(p) }
+func (p *ZeroCiphertextProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // CiphertextCiphertextEqualityProofData proves that two ciphertexts encrypt
 // the same amount.
@@ -87,6 +93,9 @@ func (p *CiphertextCiphertextEqualityProofData) ProofType() ProofType {
 }
 func (p *CiphertextCiphertextEqualityProofData) Bytes() []byte { return concatFields(p.fields()...) }
 func (p *CiphertextCiphertextEqualityProofData) Verify() error { return verifyProofData(p) }
+func (p *CiphertextCiphertextEqualityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // CiphertextCommitmentEqualityProofData proves that ciphertext and commitment
 // encode the same amount.
@@ -109,6 +118,9 @@ func (p *CiphertextCommitmentEqualityProofData) ProofType() ProofType {
 }
 func (p *CiphertextCommitmentEqualityProofData) Bytes() []byte { return concatFields(p.fields()...) }
 func (p *CiphertextCommitmentEqualityProofData) Verify() error { return verifyProofData(p) }
+func (p *CiphertextCommitmentEqualityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // PubkeyValidityProofData proves knowledge of the ElGamal secret key for
 // pubkey.
@@ -127,6 +139,9 @@ func (p *PubkeyValidityProofData) fields() [][]byte {
 func (p *PubkeyValidityProofData) ProofType() ProofType { return ProofTypePubkeyValidity }
 func (p *PubkeyValidityProofData) Bytes() []byte        { return concatFields(p.fields()...) }
 func (p *PubkeyValidityProofData) Verify() error        { return verifyProofData(p) }
+func (p *PubkeyValidityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // PercentageWithCapProofData proves a fee computation: the percentage amount
 // is either the correct percentage of the delta amount or the cap.
@@ -149,6 +164,9 @@ func (p *PercentageWithCapProofData) fields() [][]byte {
 func (p *PercentageWithCapProofData) ProofType() ProofType { return ProofTypePercentageWithCap }
 func (p *PercentageWithCapProofData) Bytes() []byte        { return concatFields(p.fields()...) }
 func (p *PercentageWithCapProofData) Verify() error        { return verifyProofData(p) }
+func (p *PercentageWithCapProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // MaxRangeProofCommitments is the number of commitment slots in a batched
 // range proof context; unused slots stay zero.
@@ -181,6 +199,9 @@ func (p *BatchedRangeProofU64Data) fields() [][]byte {
 func (p *BatchedRangeProofU64Data) ProofType() ProofType { return ProofTypeBatchedRangeProofU64 }
 func (p *BatchedRangeProofU64Data) Bytes() []byte        { return concatFields(p.fields()...) }
 func (p *BatchedRangeProofU64Data) Verify() error        { return verifyProofData(p) }
+func (p *BatchedRangeProofU64Data) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // BatchedRangeProofU128Data proves that each committed amount fits in its bit
 // length, with the bit lengths summing to 128.
@@ -195,6 +216,9 @@ func (p *BatchedRangeProofU128Data) fields() [][]byte {
 func (p *BatchedRangeProofU128Data) ProofType() ProofType { return ProofTypeBatchedRangeProofU128 }
 func (p *BatchedRangeProofU128Data) Bytes() []byte        { return concatFields(p.fields()...) }
 func (p *BatchedRangeProofU128Data) Verify() error        { return verifyProofData(p) }
+func (p *BatchedRangeProofU128Data) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // BatchedRangeProofU256Data proves that each committed amount fits in its bit
 // length, with the bit lengths summing to 256.
@@ -209,6 +233,9 @@ func (p *BatchedRangeProofU256Data) fields() [][]byte {
 func (p *BatchedRangeProofU256Data) ProofType() ProofType { return ProofTypeBatchedRangeProofU256 }
 func (p *BatchedRangeProofU256Data) Bytes() []byte        { return concatFields(p.fields()...) }
 func (p *BatchedRangeProofU256Data) Verify() error        { return verifyProofData(p) }
+func (p *BatchedRangeProofU256Data) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // GroupedCiphertext2HandlesValidityProofData proves that a 2-handle grouped
 // ciphertext is a valid encryption under both public keys.
@@ -234,6 +261,9 @@ func (p *GroupedCiphertext2HandlesValidityProofData) Bytes() []byte {
 	return concatFields(p.fields()...)
 }
 func (p *GroupedCiphertext2HandlesValidityProofData) Verify() error { return verifyProofData(p) }
+func (p *GroupedCiphertext2HandlesValidityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // BatchedGroupedCiphertext2HandlesValidityProofData proves that a lo/hi pair
 // of 2-handle grouped ciphertexts is a valid encryption under both public
@@ -263,6 +293,9 @@ func (p *BatchedGroupedCiphertext2HandlesValidityProofData) Bytes() []byte {
 func (p *BatchedGroupedCiphertext2HandlesValidityProofData) Verify() error {
 	return verifyProofData(p)
 }
+func (p *BatchedGroupedCiphertext2HandlesValidityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // GroupedCiphertext3HandlesValidityProofData proves that a 3-handle grouped
 // ciphertext is a valid encryption under all three public keys.
@@ -289,6 +322,9 @@ func (p *GroupedCiphertext3HandlesValidityProofData) Bytes() []byte {
 	return concatFields(p.fields()...)
 }
 func (p *GroupedCiphertext3HandlesValidityProofData) Verify() error { return verifyProofData(p) }
+func (p *GroupedCiphertext3HandlesValidityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
+}
 
 // BatchedGroupedCiphertext3HandlesValidityProofData proves that a lo/hi pair
 // of 3-handle grouped ciphertexts is a valid encryption under all three
@@ -318,6 +354,9 @@ func (p *BatchedGroupedCiphertext3HandlesValidityProofData) Bytes() []byte {
 }
 func (p *BatchedGroupedCiphertext3HandlesValidityProofData) Verify() error {
 	return verifyProofData(p)
+}
+func (p *BatchedGroupedCiphertext3HandlesValidityProofData) UnmarshalBinary(b []byte) error {
+	return readFields(b, p.fields()...)
 }
 
 func concatFields(fields ...[]byte) []byte {
