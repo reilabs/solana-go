@@ -32,7 +32,7 @@ var (
 	initErr      error
 	wasmRuntime  wazero.Runtime
 	wasmCompiled wazero.CompiledModule
-	// instancePool holds poolSize wasm instances, each initialised to nil
+	// instancePool holds poolSize wasm instances, each initialized to nil
 	instancePool = make(chan api.Module, poolSize)
 )
 
