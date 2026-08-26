@@ -45,12 +45,7 @@ func (sk ElGamalSecretKey) MarshalBinary() ([]byte, error) {
 }
 
 func (sk ElGamalSecretKey) isZero() bool {
-	for _, b := range sk {
-		if b != 0 {
-			return false
-		}
-	}
-	return true
+	return sk == ElGamalSecretKey{}
 }
 
 // ElGamalCiphertext is of form [Pedersen commitment, decrypt handle].
