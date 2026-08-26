@@ -135,8 +135,8 @@ func proveCiphertextSum(kp *encryption.ElGamalKeypair, encryptedA, encryptedB en
 // proveAmountRangeU128 proves a 64-bit amount and the 16/32-bit lo/hi split
 // of a second amount are in range of U128
 func proveAmountRangeU128(
-	amountCommitment encryption.PedersenCommitment,
-	amountOpening encryption.PedersenOpening,
+	balanceCommitment encryption.PedersenCommitment,
+	balanceOpening encryption.PedersenOpening,
 	amount, lo, hi uint64,
 	loOpening, hiOpening encryption.PedersenOpening,
 ) (*proofdata.BatchedRangeProofU128Data, error) {
@@ -152,17 +152,11 @@ func proveAmountRangeU128(
 	if err != nil {
 		return nil, err
 	}
-	const (
-		AmountNumBits = 64
-		LoNumBits     = 16
-		HiNumBits     = 32
-		PadNumBits    = 16 // PadNumBits = 128 - AmountNumBits - LoNumBits  - HiNumBits
-	)
 
 	return proofdata.NewBatchedRangeProofU128Data(
-		[]encryption.PedersenCommitment{amountCommitment, loCommitment, hiCommitment, padCommitment},
+		[]encryption.PedersenCommitment{balanceCommitment, loCommitment, hiCommitment, padCommitment},
 		[]uint64{amount, lo, hi, 0},
-		[]uint8{AmountNumBits, LoNumBits, HiNumBits, PadNumBits},
-		[]encryption.PedersenOpening{amountOpening, loOpening, hiOpening, padOpening},
+		[]uint8{BalanceBitLength, AmountLoBitLength, AmountHiBitLength, PadBitLength},
+		[]encryption.PedersenOpening{balanceOpening, loOpening, hiOpening, padOpening},
 	)
 }

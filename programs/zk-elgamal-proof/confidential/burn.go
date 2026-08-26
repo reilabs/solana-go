@@ -5,15 +5,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-// Burn amounts are split into a 16-bit low part and 32-bit high part.
-const (
-	RemainingBalanceBitLength  = 64
-	BurnAmountLoBitLength      = 16
-	BurnAmountHiBitLength      = 32
-	MaxBurnAmount              = 1<<(BurnAmountLoBitLength+BurnAmountHiBitLength) - 1
-	RangeProofPaddingBitLength = 16
-)
-
 // BurnProofData is the proof data of a confidential Burn instruction.
 type BurnProofData struct {
 	// EqualityProofData proves the remaining balance ciphertext and commitment match.
@@ -44,13 +35,13 @@ func BurnSplitProofData(
 	if err != nil {
 		return nil, err
 	}
-	if burnAmountPlaintext > MaxBurnAmount {
+	if burnAmountPlaintext > MaxAmount {
 		return nil, ErrIllegalAmountBitLength
 	}
 	if burnAmountPlaintext > currentBalancePlaintext {
 		return nil, ErrNotEnoughFunds
 	}
-	burnAmountLoPlaintext, burnAmountHiPlaintext := splitAmount(burnAmountPlaintext, BurnAmountLoBitLength)
+	burnAmountLoPlaintext, burnAmountHiPlaintext := splitAmount(burnAmountPlaintext, AmountLoBitLength)
 	remainingBalancePlaintext := currentBalancePlaintext - burnAmountPlaintext
 	pubkeys := [3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, supplyPubkey, orIdentity(auditorPubkey)}
 
@@ -62,7 +53,7 @@ func BurnSplitProofData(
 
 	// New balance = current balance - (lo + 2^16 * hi) and
 	// the equality proof that it matches a commitment to the remaining amount.
-	burnAmountCiphertext, err := burnAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(0, BurnAmountLoBitLength)
+	burnAmountCiphertext, err := burnAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(0, AmountLoBitLength)
 	if err != nil {
 		return nil, err
 	}

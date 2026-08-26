@@ -7,13 +7,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-// Mint amounts are split into a 16-bit low and 32-bit high part.
-const (
-	MintAmountLoBits = 16
-	MintAmountHiBits = 32
-	MaxMintAmount    = 1<<(MintAmountLoBits+MintAmountHiBits) - 1 // 2^48 - 1
-)
-
 // MintProofData is the proof data of a confidential Mint instruction carries.
 type MintProofData struct {
 	// SupplyEqualityProofData proves the new supply ciphertext matches a commitment
@@ -38,13 +31,13 @@ func MintSplitProofData(
 	destinationPubkey encryption.ElGamalPubkey,
 	auditorPubkey *encryption.ElGamalPubkey,
 ) (*MintProofData, error) {
-	if mintAmountPlaintext > MaxMintAmount {
+	if mintAmountPlaintext > MaxAmount {
 		return nil, ErrIllegalAmountBitLength
 	}
 	if mintAmountPlaintext > math.MaxUint64-currentSupplyPlaintext {
 		return nil, ErrIllegalAmountBitLength
 	}
-	mintAmountLoPlaintext, mintAmountHiPlaintext := splitAmount(mintAmountPlaintext, MintAmountLoBits)
+	mintAmountLoPlaintext, mintAmountHiPlaintext := splitAmount(mintAmountPlaintext, AmountLoBitLength)
 	newSupplyPlaintext := currentSupplyPlaintext + mintAmountPlaintext
 	pubkeys := [3]encryption.ElGamalPubkey{destinationPubkey, supplyKeypair.Pubkey, orIdentity(auditorPubkey)}
 
@@ -55,7 +48,7 @@ func MintSplitProofData(
 	}
 
 	// New supply = current supply + (lo + 2^16 * hi)
-	mintAmountCiphertext, err := mintAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(1, MintAmountLoBits)
+	mintAmountCiphertext, err := mintAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(1, AmountLoBitLength)
 	if err != nil {
 		return nil, err
 	}

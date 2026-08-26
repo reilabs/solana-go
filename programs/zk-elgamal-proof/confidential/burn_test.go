@@ -74,7 +74,7 @@ func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	combined, err := encryption.CombineLoHiCiphertexts(sourceLo, sourceHi, BurnAmountLoBitLength)
+	combined, err := encryption.CombineLoHiCiphertexts(sourceLo, sourceHi, AmountLoBitLength)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := lo + hi<<BurnAmountLoBitLength; got != burnAmount {
+		if got := lo + hi<<AmountLoBitLength; got != burnAmount {
 			t.Fatalf("%s decrypts burn amount %d, want %d", name, got, burnAmount)
 		}
 	}

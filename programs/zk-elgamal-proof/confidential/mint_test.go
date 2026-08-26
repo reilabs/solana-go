@@ -96,7 +96,7 @@ func testMintProofValidity(t *testing.T, mintAmount, currentSupply uint64) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		combined, err := encryption.CombineLoHiCiphertexts(supplyLo, supplyHi, MintAmountLoBits)
+		combined, err := encryption.CombineLoHiCiphertexts(supplyLo, supplyHi, AmountLoBitLength)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,7 +136,7 @@ func testMintProofValidity(t *testing.T, mintAmount, currentSupply uint64) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := lo + hi<<MintAmountLoBits; got != mintAmount {
+		if got := lo + hi<<AmountLoBitLength; got != mintAmount {
 			t.Fatalf("%s decrypts mint amount %d, want %d", name, got, mintAmount)
 		}
 	}

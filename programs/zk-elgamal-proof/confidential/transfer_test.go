@@ -123,7 +123,7 @@ func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint
 	if err != nil {
 		t.Fatal(err)
 	}
-	combined, err := encryption.CombineLoHiCiphertexts(senderLo, senderHi, TransferAmountLoBitLength)
+	combined, err := encryption.CombineLoHiCiphertexts(senderLo, senderHi, AmountLoBitLength)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := lo + hi<<TransferAmountLoBitLength; got != transferAmount {
+		if got := lo + hi<<AmountLoBitLength; got != transferAmount {
 			t.Fatalf("%s decrypts transfer amount %d, want %d", name, got, transferAmount)
 		}
 	}

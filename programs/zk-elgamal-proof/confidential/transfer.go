@@ -5,14 +5,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-// Confidential transfer amounts are split into a 16-bit low and 32-bit high
-// part, so a single transfer moves at most 2^48-1 tokens.
-const (
-	TransferAmountLoBitLength = 16
-	TransferAmountHiBitLength = 32
-	MaxTransferAmount         = 1<<(TransferAmountLoBitLength+TransferAmountHiBitLength) - 1
-)
-
 // CiphertextValidityProofWithAuditorCiphertext bundles a lo/hi ciphertext
 // validity proof with the grouped ciphertexts it certifies.
 type CiphertextValidityProofWithAuditorCiphertext struct {
@@ -53,13 +45,13 @@ func TransferSplitProofData(
 	if err != nil {
 		return nil, err
 	}
-	if transferAmount > MaxTransferAmount {
+	if transferAmount > MaxAmount {
 		return nil, ErrIllegalAmountBitLength
 	}
 	if transferAmount > currentBalanceAmount {
 		return nil, ErrNotEnoughFunds
 	}
-	transferAmountLo, transferAmountHi := splitAmount(transferAmount, TransferAmountLoBitLength)
+	transferAmountLo, transferAmountHi := splitAmount(transferAmount, AmountLoBitLength)
 	remainingBalance := currentBalanceAmount - transferAmount
 	pubkeys := [3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, destinationPubkey, orIdentity(auditorPubkey)}
 
@@ -68,7 +60,7 @@ func TransferSplitProofData(
 		return nil, err
 	}
 
-	transferAmountCipherText, err := validityProof.combinedCiphertextForHandle(0, TransferAmountLoBitLength)
+	transferAmountCipherText, err := validityProof.combinedCiphertextForHandle(0, AmountLoBitLength)
 	if err != nil {
 		return nil, err
 	}

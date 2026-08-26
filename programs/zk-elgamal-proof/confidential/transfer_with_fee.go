@@ -6,18 +6,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-// Transfer fees are split into a 16-bit low and 32-bit high part.
-// Fee rates are expressed in basis points of the transfer amount, rounded up.
-const (
-	FeeAmountLoBitLength = 16
-	FeeAmountHiBitLength = 32
-	MaxFeeBasisPoints    = 10_000
-
-	// deltaBitLength bounds the fee rounding error certified by the
-	// percentage-with-cap proof.
-	deltaBitLength = 16
-)
-
 // TransferWithFeeProofData is the proof data a confidential Transfer
 // instruction carries when the mint is extended for fees.
 type TransferWithFeeProofData struct {
@@ -61,13 +49,13 @@ func TransferWithFeeSplitProofData(
 	if err != nil {
 		return nil, err
 	}
-	if transferAmountPlaintext > MaxTransferAmount {
+	if transferAmountPlaintext > MaxAmount {
 		return nil, ErrIllegalAmountBitLength
 	}
 	if transferAmountPlaintext > currentBalanceAmountPlaintext {
 		return nil, ErrNotEnoughFunds
 	}
-	transferAmountLoPlaintext, transferAmountHiPlaintext := splitAmount(transferAmountPlaintext, TransferAmountLoBitLength)
+	transferAmountLoPlaintext, transferAmountHiPlaintext := splitAmount(transferAmountPlaintext, AmountLoBitLength)
 	remainingBalancePlaintext := currentBalanceAmountPlaintext - transferAmountPlaintext
 	pubkeys := [3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, destinationPubkey, orIdentity(auditorPubkey)}
 
@@ -79,7 +67,7 @@ func TransferWithFeeSplitProofData(
 
 	// New balance = current balance - (lo + 2^16 * hi), homomorphically, and
 	// the equality proof that it matches a commitment to the remaining amount.
-	combinedTransferAmountCiphertext, err := transferAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(0, TransferAmountLoBitLength)
+	combinedTransferAmountCiphertext, err := transferAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(0, AmountLoBitLength)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +165,7 @@ func TransferWithFeeSplitProofData(
 			feeLoCommitment, feeHiCommitment, netCommitment,
 		},
 		[]uint64{remainingBalancePlaintext, transferAmountLoPlaintext, transferAmountHiPlaintext, claimedDeltaPlaintext, claimedComplementPlaintext, feeLoPlaintext, feeHiPlaintext, netAmountPlaintext},
-		[]uint8{64, TransferAmountLoBitLength, TransferAmountHiBitLength, deltaBitLength, deltaBitLength, FeeAmountLoBitLength, FeeAmountHiBitLength, 64},
+		[]uint8{BalanceBitLength, AmountLoBitLength, AmountHiBitLength, deltaBitLength, deltaBitLength, FeeAmountLoBitLength, FeeAmountHiBitLength, 64},
 		[]encryption.PedersenOpening{
 			remainingBalanceOpening, transferAmountLoOpening, transferAmountHiOpening,
 			claimedDeltaOpening, complementOpening,
@@ -206,11 +194,11 @@ func combineHiLoOpeningsCommitments(amountLoPlaintext, amountHiPlaintext uint64,
 	if err != nil {
 		return
 	}
-	combinedAmountCommitment, err = encryption.CombineLoHiCommitments(amountLoCommitment, amountHiCommitment, TransferAmountLoBitLength)
+	combinedAmountCommitment, err = encryption.CombineLoHiCommitments(amountLoCommitment, amountHiCommitment, AmountLoBitLength)
 	if err != nil {
 		return
 	}
-	combinedAmountOpening, err = encryption.CombineLoHiOpenings(amountLoOpening, amountHiOpening, TransferAmountLoBitLength)
+	combinedAmountOpening, err = encryption.CombineLoHiOpenings(amountLoOpening, amountHiOpening, AmountLoBitLength)
 	if err != nil {
 		return
 	}

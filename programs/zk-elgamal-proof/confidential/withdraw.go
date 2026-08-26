@@ -5,8 +5,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-const BalanceBitLength = 64
-
 // WithdrawProofData is the proof data a confidential Withdraw instruction.
 type WithdrawProofData struct {
 	// EqualityProofData proves the new balance ciphertext matches a

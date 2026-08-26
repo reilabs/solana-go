@@ -108,7 +108,7 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 	if err != nil {
 		t.Fatal(err)
 	}
-	combined, err := encryption.CombineLoHiCiphertexts(senderLo, senderHi, TransferAmountLoBitLength)
+	combined, err := encryption.CombineLoHiCiphertexts(senderLo, senderHi, AmountLoBitLength)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := lo + hi<<TransferAmountLoBitLength; got != transferAmount {
+	if got := lo + hi<<AmountLoBitLength; got != transferAmount {
 		t.Fatalf("recipient decrypts transfer amount %d, want %d", got, transferAmount)
 	}
 
@@ -176,10 +176,10 @@ func TestCalculateFee(t *testing.T) {
 		fee, delta uint64
 	}{
 		{0, 0, 0, 0},
-		{100, 100, 1, 0},     // exact 1%
-		{101, 100, 2, 9_900}, // rounds up
-		{1, 1, 1, 9_999},     // minimum nonzero fee
-		{MaxTransferAmount, 10_000, MaxTransferAmount, 0}, // 100% of max amount
+		{100, 100, 1, 0},                  // exact 1%
+		{101, 100, 2, 9_900},              // rounds up
+		{1, 1, 1, 9_999},                  // minimum nonzero fee
+		{MaxAmount, 10_000, MaxAmount, 0}, // 100% of max amount
 	} {
 		fee, delta := calculateFee(tt.amount, tt.rate)
 		if fee != tt.fee || delta != tt.delta {
