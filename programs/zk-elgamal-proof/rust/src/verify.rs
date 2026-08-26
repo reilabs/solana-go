@@ -15,7 +15,11 @@ use crate::{
 };
 
 #[no_mangle]
-pub unsafe extern "C" fn zk_verify_proof(proof_type: u32, data_ptr: u32) -> i32 {
+pub unsafe extern "C" fn zk_verify_proof(proof_type: u32, data_ptr: u32) -> i64 {
+    verify(proof_type, data_ptr) as i64
+}
+
+unsafe fn verify(proof_type: u32, data_ptr: u32) -> i32 {
     let Ok(byte) = u8::try_from(proof_type) else {
         return ERR_UNKNOWN_PROOF_TYPE;
     };

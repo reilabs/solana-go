@@ -66,7 +66,7 @@ func invoke(name string, parts ...Arg) ([]byte, error) {
 	if len(res) != 1 {
 		return nil, fmt.Errorf("zk: %s returned %d results, want 1", name, len(res))
 	}
-	return f.decodeResult(fn, res[0])
+	return f.decodeResult(res[0])
 }
 
 // zeroize clears a transient buffer holding secret material.
@@ -157,15 +157,8 @@ func (f *frame) write(b []byte) (uint64, error) {
 	return uint64(ptr), nil
 }
 
-// decodeResult interprets an export's single return value by its declared
-// result type.
-func (f *frame) decodeResult(fn api.Function, raw uint64) ([]byte, error) {
-	if fn.Definition().ResultTypes()[0] == api.ValueTypeI32 {
-		if status := int32(uint32(raw)); status != zk.OK {
-			return nil, zk.Error(status)
-		}
-		return nil, nil
-	}
+// decodeResult interprets an export's return value
+func (f *frame) decodeResult(raw uint64) ([]byte, error) {
 	packed := int64(raw)
 	if packed < 0 {
 		return nil, zk.Error(int32(packed))
