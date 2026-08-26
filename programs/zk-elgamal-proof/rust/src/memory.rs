@@ -23,8 +23,10 @@ fn raw_alloc(len: u32) -> u32 {
         Some(total) => total,
         None => return 0,
     };
+    let Ok(layout) = Layout::from_size_align(total, ALIGN) else {
+        return 0;
+    };
     unsafe {
-        let layout = Layout::from_size_align_unchecked(total, ALIGN);
         let base = alloc(layout);
         if base.is_null() {
             return 0;

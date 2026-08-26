@@ -140,6 +140,7 @@ unsafe fn range_proof_inputs(
         .collect::<Result<Vec<_>, _>>()?;
     let amounts = input_slice(amounts_ptr, span(8)?)?
         .chunks_exact(8)
+        // chunk is contractually 8 bytes, so unwrap to [u8; 8] is safe.
         .map(|chunk| u64::from_le_bytes(chunk.try_into().unwrap()))
         .collect();
     let bit_lengths = input_slice(bit_lengths_ptr, n)?
