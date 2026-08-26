@@ -1,6 +1,7 @@
 package encryption
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -32,7 +33,7 @@ func (kp *ElGamalKeypair) UnmarshalBinary(b []byte) error {
 
 type ElGamalPubkey [32]byte
 
-func (pk ElGamalPubkey) MarshalBinary() ([]byte, error) { return copyOf(pk[:]), nil }
+func (pk ElGamalPubkey) MarshalBinary() ([]byte, error) { return bytes.Clone(pk[:]), nil }
 
 type ElGamalSecretKey [32]byte
 
@@ -40,7 +41,7 @@ func (sk ElGamalSecretKey) MarshalBinary() ([]byte, error) {
 	if sk.isZero() {
 		return nil, ErrZeroSecretKey
 	}
-	return copyOf(sk[:]), nil
+	return bytes.Clone(sk[:]), nil
 }
 
 func (sk ElGamalSecretKey) isZero() bool {
@@ -57,19 +58,19 @@ type ElGamalCiphertext [64]byte
 
 func (ct *ElGamalCiphertext) UnmarshalBinary(b []byte) error { return copyExact(ct[:], b) }
 
-func (ct ElGamalCiphertext) MarshalBinary() ([]byte, error) { return copyOf(ct[:]), nil }
+func (ct ElGamalCiphertext) MarshalBinary() ([]byte, error) { return bytes.Clone(ct[:]), nil }
 
 type PedersenCommitment [32]byte
 
 func (c *PedersenCommitment) UnmarshalBinary(b []byte) error { return copyExact(c[:], b) }
 
-func (c PedersenCommitment) MarshalBinary() ([]byte, error) { return copyOf(c[:]), nil }
+func (c PedersenCommitment) MarshalBinary() ([]byte, error) { return bytes.Clone(c[:]), nil }
 
 type PedersenOpening [32]byte
 
 func (o *PedersenOpening) UnmarshalBinary(b []byte) error { return copyExact(o[:], b) }
 
-func (o PedersenOpening) MarshalBinary() ([]byte, error) { return copyOf(o[:]), nil }
+func (o PedersenOpening) MarshalBinary() ([]byte, error) { return bytes.Clone(o[:]), nil }
 
 type PedersenCommitmentOpening struct {
 	Commitment PedersenCommitment
@@ -90,30 +91,28 @@ type GroupedElGamalCiphertext2 [96]byte
 
 func (g *GroupedElGamalCiphertext2) UnmarshalBinary(b []byte) error { return copyExact(g[:], b) }
 
-func (g GroupedElGamalCiphertext2) MarshalBinary() ([]byte, error) { return copyOf(g[:]), nil }
+func (g GroupedElGamalCiphertext2) MarshalBinary() ([]byte, error) { return bytes.Clone(g[:]), nil }
 
 // Grouped ElGamal ciphertext with 3 decrypt handles
 type GroupedElGamalCiphertext3 [128]byte
 
 func (g *GroupedElGamalCiphertext3) UnmarshalBinary(b []byte) error { return copyExact(g[:], b) }
 
-func (g GroupedElGamalCiphertext3) MarshalBinary() ([]byte, error) { return copyOf(g[:]), nil }
+func (g GroupedElGamalCiphertext3) MarshalBinary() ([]byte, error) { return bytes.Clone(g[:]), nil }
 
 // AES-GCM-SIV key
 type AeKey [16]byte
 
 func (k *AeKey) UnmarshalBinary(b []byte) error { return copyExact(k[:], b) }
 
-func (k AeKey) MarshalBinary() ([]byte, error) { return copyOf(k[:]), nil }
+func (k AeKey) MarshalBinary() ([]byte, error) { return bytes.Clone(k[:]), nil }
 
 // Authenticated encryption of a u64 amount.
 type AeCiphertext [36]byte
 
 func (ct *AeCiphertext) UnmarshalBinary(b []byte) error { return copyExact(ct[:], b) }
 
-func (ct AeCiphertext) MarshalBinary() ([]byte, error) { return copyOf(ct[:]), nil }
-
-func copyOf(b []byte) []byte { return append([]byte(nil), b...) }
+func (ct AeCiphertext) MarshalBinary() ([]byte, error) { return bytes.Clone(ct[:]), nil }
 
 func copyExact(dst, b []byte) error {
 	if len(b) != len(dst) {
