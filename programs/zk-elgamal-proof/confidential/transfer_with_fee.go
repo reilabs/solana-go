@@ -49,30 +49,13 @@ func TransferWithFeeSplitProofData(
 	if err != nil {
 		return nil, err
 	}
-	if transferAmountPlaintext > MaxAmount {
-		return nil, ErrIllegalAmountBitLength
-	}
-	if transferAmountPlaintext > currentBalanceAmountPlaintext {
-		return nil, ErrNotEnoughFunds
-	}
-	transferAmountLoPlaintext, transferAmountHiPlaintext := splitAmount(transferAmountPlaintext, AmountLoBitLength)
-	remainingBalancePlaintext := currentBalanceAmountPlaintext - transferAmountPlaintext
-	pubkeys := [3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, destinationPubkey, orIdentity(auditorPubkey)}
-
-	// Encrypt the transfer amount split under the source, destination, and auditor keys.
-	transferAmountLoHiCiphertextValidityProof, transferAmountLoOpening, transferAmountHiOpening, err := encryptAndProveAmount(pubkeys, transferAmountLoPlaintext, transferAmountHiPlaintext)
-	if err != nil {
+	if err := checkSpend(transferAmountPlaintext, currentBalanceAmountPlaintext); err != nil {
 		return nil, err
 	}
 
-	// New balance = current balance - (lo + 2^16 * hi), homomorphically, and
-	// the equality proof that it matches a commitment to the remaining amount.
-	combinedTransferAmountCiphertext, err := transferAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(0, AmountLoBitLength)
-	if err != nil {
-		return nil, err
-	}
-	remainingBalanceEqualityProof, remainingBalanceCommitment, remainingBalanceOpening, err := proveCiphertextDifference(
-		sourceKeypair, currentAvailableBalanceEGCiphertext, combinedTransferAmountCiphertext, remainingBalancePlaintext)
+	change, err := proveBalanceChange(sourceKeypair, currentAvailableBalanceEGCiphertext,
+		[3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, destinationPubkey, orIdentity(auditorPubkey)},
+		0, transferAmountPlaintext, currentBalanceAmountPlaintext-transferAmountPlaintext, proveCiphertextDifference)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +81,7 @@ func TransferWithFeeSplitProofData(
 	}
 
 	// Combined commitments and openings to the full transfer amount and fee.
-	transferAmountLoCommitment, transferAmountHiCommitment, transferAmountCommitment, transferAmountOpening, err := combineHiLoOpeningsCommitments(transferAmountLoPlaintext, transferAmountHiPlaintext, transferAmountLoOpening, transferAmountHiOpening)
+	transferAmountLoCommitment, transferAmountHiCommitment, transferAmountCommitment, transferAmountOpening, err := combineHiLoOpeningsCommitments(change.changeAmountPlaintextLo, change.changeAmountPlaintextHi, change.changeAmountOpeningLo, change.changeAmountOpeningHi)
 	if err != nil {
 		return nil, err
 	}
@@ -160,14 +143,14 @@ func TransferWithFeeSplitProofData(
 	// amount (64), totalling 256 bits.
 	rangeProof, err := proofdata.NewBatchedRangeProofU256Data(
 		[]encryption.PedersenCommitment{
-			remainingBalanceCommitment, transferAmountLoCommitment, transferAmountHiCommitment,
+			change.finalBalanceCommitment, transferAmountLoCommitment, transferAmountHiCommitment,
 			claimedDeltaCommitment, complementCommitment,
 			feeLoCommitment, feeHiCommitment, netCommitment,
 		},
-		[]uint64{remainingBalancePlaintext, transferAmountLoPlaintext, transferAmountHiPlaintext, claimedDeltaPlaintext, claimedComplementPlaintext, feeLoPlaintext, feeHiPlaintext, netAmountPlaintext},
-		[]uint8{BalanceBitLength, AmountLoBitLength, AmountHiBitLength, deltaBitLength, deltaBitLength, FeeAmountLoBitLength, FeeAmountHiBitLength, 64},
+		[]uint64{change.finalBalance, change.changeAmountPlaintextLo, change.changeAmountPlaintextHi, claimedDeltaPlaintext, claimedComplementPlaintext, feeLoPlaintext, feeHiPlaintext, netAmountPlaintext},
+		[]uint8{BalanceBitLength, AmountLoBitLength, AmountHiBitLength, deltaBitLength, deltaBitLength, FeeAmountLoBitLength, FeeAmountHiBitLength, netAmountBitLength},
 		[]encryption.PedersenOpening{
-			remainingBalanceOpening, transferAmountLoOpening, transferAmountHiOpening,
+			change.finalBalanceOpening, change.changeAmountOpeningLo, change.changeAmountOpeningHi,
 			claimedDeltaOpening, complementOpening,
 			feeLoOpening, feeHiOpening, netOpening,
 		},
@@ -177,8 +160,8 @@ func TransferWithFeeSplitProofData(
 	}
 
 	return &TransferWithFeeProofData{
-		RemainingBalanceProofData:                               remainingBalanceEqualityProof,
-		TransferAmountCiphertextValidityProofDataWithCiphertext: transferAmountLoHiCiphertextValidityProof,
+		RemainingBalanceProofData:                               change.finalBalanceEqualityProof,
+		TransferAmountCiphertextValidityProofDataWithCiphertext: change.changeAmountCipherTextValidityProof,
 		PercentageWithCapProofData:                              percentageWithCapProofData,
 		FeeCiphertextValidityProofData:                          feeLoHiCiphertextValidity,
 		RangeProofData:                                          rangeProof,

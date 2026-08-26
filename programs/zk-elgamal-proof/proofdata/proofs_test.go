@@ -8,6 +8,21 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/zktest"
 )
 
+// commitAll commits to every amount with a fresh random opening.
+func commitAll(t *testing.T, amounts []uint64) ([]encryption.PedersenCommitment, []encryption.PedersenOpening) {
+	t.Helper()
+	commitments := make([]encryption.PedersenCommitment, len(amounts))
+	openings := make([]encryption.PedersenOpening, len(amounts))
+	for i, amount := range amounts {
+		var err error
+		commitments[i], openings[i], err = encryption.NewPedersenCommitment(amount)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	return commitments, openings
+}
+
 func TestPubkeyValidityProof(t *testing.T) {
 	kp := zktest.GenKeyPair(t)
 	proof, err := NewPubkeyValidityProofData(kp)
@@ -137,15 +152,7 @@ func TestPercentageWithCapProof(t *testing.T) {
 func TestBatchedRangeProofU64(t *testing.T) {
 	amounts := []uint64{zktest.GenAmount(t, 1<<32-1), zktest.GenAmount(t, 1<<32-1)}
 	bitLengths := []uint8{32, 32}
-	commitments := make([]encryption.PedersenCommitment, len(amounts))
-	openings := make([]encryption.PedersenOpening, len(amounts))
-	for i, amount := range amounts {
-		var err error
-		commitments[i], openings[i], err = encryption.NewPedersenCommitment(amount)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	commitments, openings := commitAll(t, amounts)
 	proof, err := NewBatchedRangeProofU64Data(commitments, amounts, bitLengths, openings)
 	if err != nil {
 		t.Fatal(err)
@@ -180,15 +187,7 @@ func TestBatchedRangeProofU256(t *testing.T) {
 		zktest.GenAmount(t, 1<<63), zktest.GenAmount(t, 1<<63),
 	}
 	bitLengths := []uint8{64, 64, 64, 64}
-	commitments := make([]encryption.PedersenCommitment, len(amounts))
-	openings := make([]encryption.PedersenOpening, len(amounts))
-	for i, amount := range amounts {
-		var err error
-		commitments[i], openings[i], err = encryption.NewPedersenCommitment(amount)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	commitments, openings := commitAll(t, amounts)
 	proof, err := NewBatchedRangeProofU256Data(commitments, amounts, bitLengths, openings)
 	if err != nil {
 		t.Fatal(err)

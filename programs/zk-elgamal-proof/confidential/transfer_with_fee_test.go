@@ -43,7 +43,7 @@ func TestTransferWithFeeProofData(t *testing.T) {
 	}
 
 	// Structural violations are rejected before any proof work.
-	sender, aeKey := genTransferAccount(t)
+	sender, aeKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 	withdrawAuthority := zktest.GenKeyPair(t)
@@ -72,7 +72,7 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 	remaining := currentBalance - transferAmount
 	feeAmount := min((transferAmount*uint64(feeRate)+9_999)/10_000, maximumFee)
 
-	sender, aeKey := genTransferAccount(t)
+	sender, aeKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 	withdrawAuthority := zktest.GenKeyPair(t)
@@ -86,85 +86,28 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 		t.Fatal(err)
 	}
 	validity := proofs.TransferAmountCiphertextValidityProofDataWithCiphertext
-	for name, proof := range map[string]proofdata.ProofData{
+	verifyAll(t, map[string]proofdata.ProofData{
 		"equality":     proofs.RemainingBalanceProofData,
 		"validity":     validity.ProofData,
 		"percentage":   proofs.PercentageWithCapProofData,
 		"fee validity": proofs.FeeCiphertextValidityProofData,
 		"range":        proofs.RangeProofData,
-	} {
-		if err := proof.Verify(); err != nil {
-			t.Fatalf("%s proof rejected: %v", name, err)
-		}
-	}
+	})
 
 	// The sender can decrypt the new balance, derived homomorphically the way
 	// the token program recomputes it on-chain.
-	senderLo, err := validity.CiphertextLo.ToElGamalCiphertext(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	senderHi, err := validity.CiphertextHi.ToElGamalCiphertext(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	combined, err := encryption.CombineLoHiCiphertexts(senderLo, senderHi, AmountLoBitLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-	newBalance, err := encryption.SubtractCiphertexts(balanceCt, combined)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := sender.DecryptU32(newBalance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != remaining {
-		t.Fatalf("new balance decrypts to %d, want %d", got, remaining)
-	}
+	newBalance := applyToBalance(t, balanceCt, validity, 0, encryption.SubtractCiphertexts)
+	decryptEquals(t, sender, newBalance, remaining, "new balance")
 
 	// The recipient recovers the gross transfer amount from its handles.
-	loCt, err := validity.CiphertextLo.ToElGamalCiphertext(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	hiCt, err := validity.CiphertextHi.ToElGamalCiphertext(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	lo, err := recipient.DecryptU32(loCt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	hi, err := recipient.DecryptU32(hiCt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := lo + hi<<AmountLoBitLength; got != transferAmount {
+	if got := decryptHandle(t, recipient, validity.CiphertextLo, validity.CiphertextHi, 1, AmountLoBitLength); got != transferAmount {
 		t.Fatalf("recipient decrypts transfer amount %d, want %d", got, transferAmount)
 	}
 
 	// The withdraw withheld authority recovers the fee from the fee validity
 	// proof context's grouped ciphertexts.
 	feeContext := proofs.FeeCiphertextValidityProofData.Context
-	feeLoCt, err := feeContext.GroupedCiphertextLo.ToElGamalCiphertext(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeHiCt, err := feeContext.GroupedCiphertextHi.ToElGamalCiphertext(1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeLo, err := withdrawAuthority.DecryptU32(feeLoCt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	feeHi, err := withdrawAuthority.DecryptU32(feeHiCt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := feeLo + feeHi<<FeeAmountLoBitLength; got != feeAmount {
+	if got := decryptHandle(t, withdrawAuthority, feeContext.GroupedCiphertextLo, feeContext.GroupedCiphertextHi, 1, FeeAmountLoBitLength); got != feeAmount {
 		t.Fatalf("authority decrypts fee %d, want %d", got, feeAmount)
 	}
 }

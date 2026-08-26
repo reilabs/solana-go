@@ -29,7 +29,7 @@ func TestTransferProofData(t *testing.T) {
 
 	// A mint without an auditor: the proofs still verify.
 	t.Run("no auditor", func(t *testing.T) {
-		sender, aeKey := genTransferAccount(t)
+		sender, aeKey := generateSourceAccount(t)
 		recipient := zktest.GenKeyPair(t)
 		balanceCt, decryptable := encryptBalance(t, sender, aeKey, 1000)
 		proofs, err := TransferSplitProofData(balanceCt, decryptable, 500,
@@ -37,19 +37,15 @@ func TestTransferProofData(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for name, proof := range map[string]proofdata.ProofData{
+		verifyAll(t, map[string]proofdata.ProofData{
 			"equality": proofs.EqualityProofData,
 			"validity": proofs.CiphertextValidityProofDataWithCiphertext.ProofData,
 			"range":    proofs.RangeProofData,
-		} {
-			if err := proof.Verify(); err != nil {
-				t.Fatalf("%s proof rejected: %v", name, err)
-			}
-		}
+		})
 	})
 
 	// Structural violations are rejected before any proof work.
-	sender, aeKey := genTransferAccount(t)
+	sender, aeKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 	const currentBalance = uint64(1_000_000)
@@ -65,34 +61,8 @@ func TestTransferProofData(t *testing.T) {
 	}
 }
 
-// genTransferAccount returns a source keypair and AE key.
-func genTransferAccount(t *testing.T) (*encryption.ElGamalKeypair, encryption.AeKey) {
-	t.Helper()
-	kp := zktest.GenKeyPair(t)
-	aeKey, err := encryption.NewAeKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return kp, aeKey
-}
-
-// encryptBalance encrypts balance under both the ElGamal pubkey and the AE key.
-func encryptBalance(t *testing.T, kp *encryption.ElGamalKeypair, aeKey encryption.AeKey, balance uint64) (encryption.ElGamalCiphertext, encryption.AeCiphertext) {
-	t.Helper()
-	balanceCt, err := kp.Pubkey.Encrypt(balance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	decryptable, err := aeKey.Encrypt(balance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return balanceCt, decryptable
-}
-
 func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint64) {
-	remaining := currentBalance - transferAmount
-	sender, aeKey := genTransferAccount(t)
+	sender, aeKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 
@@ -103,67 +73,30 @@ func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint
 		t.Fatal(err)
 	}
 	validity := proofs.CiphertextValidityProofDataWithCiphertext
-	for name, proof := range map[string]proofdata.ProofData{
+	verifyAll(t, map[string]proofdata.ProofData{
 		"equality": proofs.EqualityProofData,
 		"validity": validity.ProofData,
 		"range":    proofs.RangeProofData,
-	} {
-		if err := proof.Verify(); err != nil {
-			t.Fatalf("%s proof rejected: %v", name, err)
-		}
-	}
+	})
 
 	// The sender can decrypt the new balance, derived homomorphically the way
 	// the token program recomputes it on-chain.
-	senderLo, err := validity.CiphertextLo.ToElGamalCiphertext(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	senderHi, err := validity.CiphertextHi.ToElGamalCiphertext(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	combined, err := encryption.CombineLoHiCiphertexts(senderLo, senderHi, AmountLoBitLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-	newBalance, err := encryption.SubtractCiphertexts(balanceCt, combined)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := sender.DecryptU32(newBalance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != remaining {
-		t.Fatalf("new balance decrypts to %d, want %d", got, remaining)
-	}
+	newBalance := applyToBalance(t, balanceCt, validity, 0, encryption.SubtractCiphertexts)
+	decryptEquals(t, sender, newBalance, currentBalance-transferAmount, "new balance")
 
 	// The recipient and auditor recover the transfer amount from their
 	// handles (lo + hi<<16).
-	for name, kp := range map[string]*encryption.ElGamalKeypair{"recipient": recipient, "auditor": auditor} {
-		index := 1
-		if name == "auditor" {
-			index = 2
-		}
-		loCt, err := validity.CiphertextLo.ToElGamalCiphertext(index)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hiCt, err := validity.CiphertextHi.ToElGamalCiphertext(index)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lo, err := kp.DecryptU32(loCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hi, err := kp.DecryptU32(hiCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := lo + hi<<AmountLoBitLength; got != transferAmount {
-			t.Fatalf("%s decrypts transfer amount %d, want %d", name, got, transferAmount)
+	for _, holder := range []struct {
+		name  string
+		kp    *encryption.ElGamalKeypair
+		index int
+	}{
+		{"recipient", recipient, 1},
+		{"auditor", auditor, 2},
+	} {
+		got := decryptHandle(t, holder.kp, validity.CiphertextLo, validity.CiphertextHi, holder.index, AmountLoBitLength)
+		if got != transferAmount {
+			t.Fatalf("%s decrypts transfer amount %d, want %d", holder.name, got, transferAmount)
 		}
 	}
 }

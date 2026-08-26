@@ -74,70 +74,33 @@ func testMintProofValidity(t *testing.T, mintAmount, currentSupply uint64) {
 		t.Fatal(err)
 	}
 	validity := proofs.CiphertextValidityProofDataWithCiphertext
-	for name, proof := range map[string]proofdata.ProofData{
+	verifyAll(t, map[string]proofdata.ProofData{
 		"equality": proofs.SupplyEqualityProofData,
 		"validity": validity.ProofData,
 		"range":    proofs.RangeProofData,
-	} {
-		if err := proof.Verify(); err != nil {
-			t.Fatalf("%s proof rejected: %v", name, err)
-		}
-	}
+	})
 
 	// The supply keypair can decrypt the new supply, derived homomorphically
 	// the way the token program recomputes it on-chain (recovery is only
 	// feasible for values that fit in 32 bits).
 	if newSupply <= math.MaxUint32 {
-		supplyLo, err := validity.CiphertextLo.ToElGamalCiphertext(1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		supplyHi, err := validity.CiphertextHi.ToElGamalCiphertext(1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		combined, err := encryption.CombineLoHiCiphertexts(supplyLo, supplyHi, AmountLoBitLength)
-		if err != nil {
-			t.Fatal(err)
-		}
-		newSupplyCt, err := encryption.AddCiphertexts(supplyCt, combined)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, err := supply.DecryptU32(newSupplyCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != newSupply {
-			t.Fatalf("new supply decrypts to %d, want %d", got, newSupply)
-		}
+		newSupplyCt := applyToBalance(t, supplyCt, validity, 1, encryption.AddCiphertexts)
+		decryptEquals(t, supply, newSupplyCt, newSupply, "new supply")
 	}
 
 	// The destination and auditor recover the mint amount from their handles
 	// (lo + hi<<16).
-	for name, kp := range map[string]*encryption.ElGamalKeypair{"destination": destination, "auditor": auditor} {
-		index := 0
-		if name == "auditor" {
-			index = 2
-		}
-		loCt, err := validity.CiphertextLo.ToElGamalCiphertext(index)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hiCt, err := validity.CiphertextHi.ToElGamalCiphertext(index)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lo, err := kp.DecryptU32(loCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hi, err := kp.DecryptU32(hiCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := lo + hi<<AmountLoBitLength; got != mintAmount {
-			t.Fatalf("%s decrypts mint amount %d, want %d", name, got, mintAmount)
+	for _, holder := range []struct {
+		name  string
+		kp    *encryption.ElGamalKeypair
+		index int
+	}{
+		{"destination", destination, 0},
+		{"auditor", auditor, 2},
+	} {
+		got := decryptHandle(t, holder.kp, validity.CiphertextLo, validity.CiphertextHi, holder.index, AmountLoBitLength)
+		if got != mintAmount {
+			t.Fatalf("%s decrypts mint amount %d, want %d", holder.name, got, mintAmount)
 		}
 	}
 }

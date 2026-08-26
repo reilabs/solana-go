@@ -37,39 +37,24 @@ func MintSplitProofData(
 	if mintAmountPlaintext > math.MaxUint64-currentSupplyPlaintext {
 		return nil, ErrIllegalAmountBitLength
 	}
-	mintAmountLoPlaintext, mintAmountHiPlaintext := splitAmount(mintAmountPlaintext, AmountLoBitLength)
-	newSupplyPlaintext := currentSupplyPlaintext + mintAmountPlaintext
-	pubkeys := [3]encryption.ElGamalPubkey{destinationPubkey, supplyKeypair.Pubkey, orIdentity(auditorPubkey)}
 
-	// Encrypt the mint amount split under all three keys and prove validity.
-	mintAmountLoHiCiphertextValidityProof, openingLo, openingHi, err := encryptAndProveAmount(pubkeys, mintAmountLoPlaintext, mintAmountHiPlaintext)
-	if err != nil {
-		return nil, err
-	}
-
-	// New supply = current supply + (lo + 2^16 * hi)
-	mintAmountCiphertext, err := mintAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(1, AmountLoBitLength)
-	if err != nil {
-		return nil, err
-	}
-	newSupplyCiphertextValidityProof, newSupplyCommitment, newSupplyOpening, err := proveCiphertextSum(
-		supplyKeypair, currentSupplyCiphertext, mintAmountCiphertext, newSupplyPlaintext)
+	supplyChange, err := proveBalanceChange(supplyKeypair, currentSupplyCiphertext,
+		[3]encryption.ElGamalPubkey{destinationPubkey, supplyKeypair.Pubkey, orIdentity(auditorPubkey)},
+		1, mintAmountPlaintext, currentSupplyPlaintext+mintAmountPlaintext, proveCiphertextSum)
 	if err != nil {
 		return nil, err
 	}
 
 	// Range proof over new supply (64), lo (16), hi (32), and a zero pad
 	// (16), totalling 128 bits.
-	rangeProof, err := proveAmountRangeU128(
-		newSupplyCommitment, newSupplyOpening, newSupplyPlaintext,
-		mintAmountLoPlaintext, mintAmountHiPlaintext, openingLo, openingHi)
+	rangeProof, err := supplyChange.rangeProofU128()
 	if err != nil {
 		return nil, err
 	}
 
 	return &MintProofData{
-		SupplyEqualityProofData:                   newSupplyCiphertextValidityProof,
-		CiphertextValidityProofDataWithCiphertext: mintAmountLoHiCiphertextValidityProof,
+		SupplyEqualityProofData:                   supplyChange.finalBalanceEqualityProof,
+		CiphertextValidityProofDataWithCiphertext: supplyChange.changeAmountCipherTextValidityProof,
 		RangeProofData:                            rangeProof,
 	}, nil
 }

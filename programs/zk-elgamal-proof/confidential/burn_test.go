@@ -25,7 +25,7 @@ func TestBurnProofData(t *testing.T) {
 			testBurnProofValidity(t, tt.balance, tt.amount)
 		})
 	}
-	sourcekp, sourceAesKey := genTransferAccount(t)
+	sourcekp, sourceAesKey := generateSourceAccount(t)
 	supplykp := zktest.GenKeyPair(t)
 	auditorkp := zktest.GenKeyPair(t)
 	const currentBalance = uint64(2_000_000)
@@ -42,8 +42,7 @@ func TestBurnProofData(t *testing.T) {
 }
 
 func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
-	remaining := currentBalance - burnAmount
-	source, aeKey := genTransferAccount(t)
+	source, aeKey := generateSourceAccount(t)
 	supply := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 
@@ -54,67 +53,30 @@ func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
 		t.Fatal(err)
 	}
 	validity := proofs.CiphertextValidityProofDataWithCiphertext
-	for name, proof := range map[string]proofdata.ProofData{
+	verifyAll(t, map[string]proofdata.ProofData{
 		"equality": proofs.EqualityProofData,
 		"validity": validity.ProofData,
 		"range":    proofs.RangeProofData,
-	} {
-		if err := proof.Verify(); err != nil {
-			t.Fatalf("%s proof rejected: %v", name, err)
-		}
-	}
+	})
 
 	// The source can decrypt the new balance, derived homomorphically the way
 	// the token program recomputes it on-chain.
-	sourceLo, err := validity.CiphertextLo.ToElGamalCiphertext(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sourceHi, err := validity.CiphertextHi.ToElGamalCiphertext(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	combined, err := encryption.CombineLoHiCiphertexts(sourceLo, sourceHi, AmountLoBitLength)
-	if err != nil {
-		t.Fatal(err)
-	}
-	newBalance, err := encryption.SubtractCiphertexts(balanceCt, combined)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := source.DecryptU32(newBalance)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != remaining {
-		t.Fatalf("new balance decrypts to %d, want %d", got, remaining)
-	}
+	newBalance := applyToBalance(t, balanceCt, validity, 0, encryption.SubtractCiphertexts)
+	decryptEquals(t, source, newBalance, currentBalance-burnAmount, "new balance")
 
 	// The supply and auditor recover the burn amount from their handles
 	// (lo + hi<<16).
-	for name, kp := range map[string]*encryption.ElGamalKeypair{"supply": supply, "auditor": auditor} {
-		index := 1
-		if name == "auditor" {
-			index = 2
-		}
-		loCt, err := validity.CiphertextLo.ToElGamalCiphertext(index)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hiCt, err := validity.CiphertextHi.ToElGamalCiphertext(index)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lo, err := kp.DecryptU32(loCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		hi, err := kp.DecryptU32(hiCt)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := lo + hi<<AmountLoBitLength; got != burnAmount {
-			t.Fatalf("%s decrypts burn amount %d, want %d", name, got, burnAmount)
+	for _, holder := range []struct {
+		name  string
+		kp    *encryption.ElGamalKeypair
+		index int
+	}{
+		{"supply", supply, 1},
+		{"auditor", auditor, 2},
+	} {
+		got := decryptHandle(t, holder.kp, validity.CiphertextLo, validity.CiphertextHi, holder.index, AmountLoBitLength)
+		if got != burnAmount {
+			t.Fatalf("%s decrypts burn amount %d, want %d", holder.name, got, burnAmount)
 		}
 	}
 }

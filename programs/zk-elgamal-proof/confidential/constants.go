@@ -12,8 +12,8 @@ const (
 	AmountHiBitLength = 32
 	// Highest possible value of an encrypted transfer amount.
 	MaxAmount = 1<<(AmountLoBitLength+AmountHiBitLength) - 1
-	// PadBitLength = 128 - BalanceBitLength - AmountLoBitLength - AmountHiBitLength
-	PadBitLength = 16
+	// PadBitLength is the headroom in proving balance and amount fit into 128 bits.
+	PadBitLength = 128 - BalanceBitLength - AmountLoBitLength - AmountHiBitLength
 
 	// The number of bits in the low part of a transfer fee.
 	FeeAmountLoBitLength = 16
@@ -23,4 +23,6 @@ const (
 	MaxFeeBasisPoints = uint64(token2022.MaxFeeBasisPoints)
 	// deltaBitLength bounds the fee rounding error certified by the percentage-with-cap proof.
 	deltaBitLength = 16
+	// netAmountBitLength covers the transfer amount less the fee.
+	netAmountBitLength = 64
 )

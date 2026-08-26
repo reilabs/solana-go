@@ -35,46 +35,25 @@ func BurnSplitProofData(
 	if err != nil {
 		return nil, err
 	}
-	if burnAmountPlaintext > MaxAmount {
-		return nil, ErrIllegalAmountBitLength
+	if err := checkSpend(burnAmountPlaintext, currentBalancePlaintext); err != nil {
+		return nil, err
 	}
-	if burnAmountPlaintext > currentBalancePlaintext {
-		return nil, ErrNotEnoughFunds
-	}
-	burnAmountLoPlaintext, burnAmountHiPlaintext := splitAmount(burnAmountPlaintext, AmountLoBitLength)
-	remainingBalancePlaintext := currentBalancePlaintext - burnAmountPlaintext
-	pubkeys := [3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, supplyPubkey, orIdentity(auditorPubkey)}
 
-	// Encrypt the burn amount split under all three keys and prove validity.
-	burnAmountLoHiCiphertextValidityProof, openingLo, openingHi, err := encryptAndProveAmount(pubkeys, burnAmountLoPlaintext, burnAmountHiPlaintext)
+	change, err := proveBalanceChange(sourceKeypair, currentAvailableBalanceEGCiphertext,
+		[3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, supplyPubkey, orIdentity(auditorPubkey)},
+		0, burnAmountPlaintext, currentBalancePlaintext-burnAmountPlaintext, proveCiphertextDifference)
 	if err != nil {
 		return nil, err
 	}
 
-	// New balance = current balance - (lo + 2^16 * hi) and
-	// the equality proof that it matches a commitment to the remaining amount.
-	burnAmountCiphertext, err := burnAmountLoHiCiphertextValidityProof.combinedCiphertextForHandle(0, AmountLoBitLength)
-	if err != nil {
-		return nil, err
-	}
-
-	remainingBalanceEqualityProof, remainingBalanceCommitment, remainingBalanceOpening, err := proveCiphertextDifference(
-		sourceKeypair, currentAvailableBalanceEGCiphertext, burnAmountCiphertext, remainingBalancePlaintext)
-	if err != nil {
-		return nil, err
-	}
-
-	// Range proof over remaining balance(64), lo (16), hi (32), and a zero pad (16) totalling 128 bits.
-	rangeProof, err := proveAmountRangeU128(
-		remainingBalanceCommitment, remainingBalanceOpening, remainingBalancePlaintext,
-		burnAmountLoPlaintext, burnAmountHiPlaintext, openingLo, openingHi)
+	rangeProof, err := change.rangeProofU128()
 	if err != nil {
 		return nil, err
 	}
 
 	return &BurnProofData{
-		EqualityProofData:                         remainingBalanceEqualityProof,
-		CiphertextValidityProofDataWithCiphertext: burnAmountLoHiCiphertextValidityProof,
+		EqualityProofData:                         change.finalBalanceEqualityProof,
+		CiphertextValidityProofDataWithCiphertext: change.changeAmountCipherTextValidityProof,
 		RangeProofData:                            rangeProof,
 	}, nil
 }

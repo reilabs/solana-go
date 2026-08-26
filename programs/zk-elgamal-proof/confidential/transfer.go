@@ -45,43 +45,26 @@ func TransferSplitProofData(
 	if err != nil {
 		return nil, err
 	}
-	if transferAmount > MaxAmount {
-		return nil, ErrIllegalAmountBitLength
-	}
-	if transferAmount > currentBalanceAmount {
-		return nil, ErrNotEnoughFunds
-	}
-	transferAmountLo, transferAmountHi := splitAmount(transferAmount, AmountLoBitLength)
-	remainingBalance := currentBalanceAmount - transferAmount
-	pubkeys := [3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, destinationPubkey, orIdentity(auditorPubkey)}
-
-	validityProof, transferAmountOpeningLo, transferAmountOpeningHi, err := encryptAndProveAmount(pubkeys, transferAmountLo, transferAmountHi)
-	if err != nil {
+	if err := checkSpend(transferAmount, currentBalanceAmount); err != nil {
 		return nil, err
 	}
 
-	transferAmountCipherText, err := validityProof.combinedCiphertextForHandle(0, AmountLoBitLength)
-	if err != nil {
-		return nil, err
-	}
-
-	remainingBalanceEqualityProof, remainingBalanceCommitment, remainingBalanceOpening, err := proveCiphertextDifference(
-		sourceKeypair, currentAvailableBalance, transferAmountCipherText, remainingBalance)
+	change, err := proveBalanceChange(sourceKeypair, currentAvailableBalance,
+		[3]encryption.ElGamalPubkey{sourceKeypair.Pubkey, destinationPubkey, orIdentity(auditorPubkey)},
+		0, transferAmount, currentBalanceAmount-transferAmount, proveCiphertextDifference)
 	if err != nil {
 		return nil, err
 	}
 
 	// Range proof over remainingBalance, transferAmountLo, transferAmountHi, and a zero pad totalling 128 bits.
-	rangeProof, err := proveAmountRangeU128(
-		remainingBalanceCommitment, remainingBalanceOpening, remainingBalance,
-		transferAmountLo, transferAmountHi, transferAmountOpeningLo, transferAmountOpeningHi)
+	rangeProof, err := change.rangeProofU128()
 	if err != nil {
 		return nil, err
 	}
 
 	return &TransferProofData{
-		EqualityProofData:                         remainingBalanceEqualityProof,
-		CiphertextValidityProofDataWithCiphertext: validityProof,
+		EqualityProofData:                         change.finalBalanceEqualityProof,
+		CiphertextValidityProofDataWithCiphertext: change.changeAmountCipherTextValidityProof,
 		RangeProofData:                            rangeProof,
 	}, nil
 }

@@ -20,6 +20,17 @@ func splitAmount(amount uint64, loBits uint8) (lo, hi uint64) {
 	return amount & (1<<loBits - 1), amount >> loBits
 }
 
+// checkSpend rejects a spend the encryption cannot represent, or is more than the account balance.
+func checkSpend(amount, balance uint64) error {
+	if amount > MaxAmount {
+		return ErrIllegalAmountBitLength
+	}
+	if amount > balance {
+		return ErrNotEnoughFunds
+	}
+	return nil
+}
+
 // encryptAndProveAmount encrypts the lo/hi amount split under the three
 // public keys with fresh Pedersen openings and proves the grouped ciphertexts
 // are valid encryptions.
@@ -98,6 +109,10 @@ func (v CiphertextValidityProofWithAuditorCiphertext) combinedCiphertextForHandl
 	return encryption.CombineLoHiCiphertexts(lo, hi, loBits)
 }
 
+// balanceOp proves that a homomorophic operation on two ciphertexts yields a fresh commitment to the plaintext result.
+type balanceOp func(kp *encryption.ElGamalKeypair, a, b encryption.ElGamalCiphertext, result uint64) (
+	*proofdata.CiphertextCommitmentEqualityProofData, encryption.PedersenCommitment, encryption.PedersenOpening, error)
+
 // proveCiphertextDifference subtracts encryptedSubtrahend from encryptedMinuend
 // and proves the result matches a fresh commitment to the plaintext difference
 func proveCiphertextDifference(kp *encryption.ElGamalKeypair, encryptedMinuend, encryptedSubtrahend encryption.ElGamalCiphertext, difference uint64) (equalityProof *proofdata.CiphertextCommitmentEqualityProofData, differenceCommitment encryption.PedersenCommitment, differenceOpening encryption.PedersenOpening, err error) {
@@ -132,19 +147,54 @@ func proveCiphertextSum(kp *encryption.ElGamalKeypair, encryptedA, encryptedB en
 	return
 }
 
-// proveAmountRangeU128 proves a 64-bit amount and the 16/32-bit lo/hi split
-// of a second amount are in range of U128
-func proveAmountRangeU128(
-	balanceCommitment encryption.PedersenCommitment,
-	balanceOpening encryption.PedersenOpening,
-	amount, lo, hi uint64,
-	loOpening, hiOpening encryption.PedersenOpening,
-) (*proofdata.BatchedRangeProofU128Data, error) {
-	loCommitment, err := encryption.PedersenCommitmentWith(lo, loOpening)
+// balanceChangeData is the material the Transfer, Burn, Mint, and
+// TransferWithFee builders produce before their range proofs.
+type balanceChangeData struct {
+	changeAmountCipherTextValidityProof CiphertextValidityProofWithAuditorCiphertext
+	finalBalanceEqualityProof           *proofdata.CiphertextCommitmentEqualityProofData
+
+	changeAmountPlaintextLo, changeAmountPlaintextHi uint64
+	changeAmountOpeningLo, changeAmountOpeningHi     encryption.PedersenOpening
+
+	// finalBalance is the new balance or supply
+	finalBalance           uint64
+	finalBalanceCommitment encryption.PedersenCommitment
+	finalBalanceOpening    encryption.PedersenOpening
+}
+
+// proveBalanceChange encrypts the lo/hi split of amount under pubkeys, then
+// recombines the handles at selfIndex and proves that operation yields result.
+func proveBalanceChange(
+	kp *encryption.ElGamalKeypair,
+	currentBalance encryption.ElGamalCiphertext,
+	pubkeys [3]encryption.ElGamalPubkey,
+	selfIndex int,
+	changeAmount, finalBalance uint64,
+	op balanceOp,
+) (c balanceChangeData, err error) {
+	c.changeAmountPlaintextLo, c.changeAmountPlaintextHi = splitAmount(changeAmount, AmountLoBitLength)
+	c.finalBalance = finalBalance
+
+	c.changeAmountCipherTextValidityProof, c.changeAmountOpeningLo, c.changeAmountOpeningHi, err = encryptAndProveAmount(pubkeys, c.changeAmountPlaintextLo, c.changeAmountPlaintextHi)
+	if err != nil {
+		return
+	}
+	changeAmountCiphertext, err := c.changeAmountCipherTextValidityProof.combinedCiphertextForHandle(selfIndex, AmountLoBitLength)
+	if err != nil {
+		return
+	}
+	c.finalBalanceEqualityProof, c.finalBalanceCommitment, c.finalBalanceOpening, err = op(kp, currentBalance, changeAmountCiphertext, finalBalance)
+	return
+}
+
+// rangeProofU128 proves the 64-bit result and the lo/hi amount split are in
+// range, padded out to the 128 bits the batched proof covers.
+func (c balanceChangeData) rangeProofU128() (*proofdata.BatchedRangeProofU128Data, error) {
+	loCommitment, err := encryption.PedersenCommitmentWith(c.changeAmountPlaintextLo, c.changeAmountOpeningLo)
 	if err != nil {
 		return nil, err
 	}
-	hiCommitment, err := encryption.PedersenCommitmentWith(hi, hiOpening)
+	hiCommitment, err := encryption.PedersenCommitmentWith(c.changeAmountPlaintextHi, c.changeAmountOpeningHi)
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +204,9 @@ func proveAmountRangeU128(
 	}
 
 	return proofdata.NewBatchedRangeProofU128Data(
-		[]encryption.PedersenCommitment{balanceCommitment, loCommitment, hiCommitment, padCommitment},
-		[]uint64{amount, lo, hi, 0},
+		[]encryption.PedersenCommitment{c.finalBalanceCommitment, loCommitment, hiCommitment, padCommitment},
+		[]uint64{c.finalBalance, c.changeAmountPlaintextLo, c.changeAmountPlaintextHi, 0},
 		[]uint8{BalanceBitLength, AmountLoBitLength, AmountHiBitLength, PadBitLength},
-		[]encryption.PedersenOpening{balanceOpening, loOpening, hiOpening, padOpening},
+		[]encryption.PedersenOpening{c.finalBalanceOpening, c.changeAmountOpeningLo, c.changeAmountOpeningHi, padOpening},
 	)
 }
