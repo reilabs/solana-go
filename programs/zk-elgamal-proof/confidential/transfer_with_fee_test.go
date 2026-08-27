@@ -87,7 +87,7 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 	}
 	validity := proofs.TransferAmountCiphertextValidityProofDataWithCiphertext
 	verifyAll(t, map[string]proofdata.ProofData{
-		"equality":     proofs.RemainingBalanceProofData,
+		"equality":     proofs.EqualityProofData,
 		"validity":     validity.ProofData,
 		"percentage":   proofs.PercentageWithCapProofData,
 		"fee validity": proofs.FeeCiphertextValidityProofData,

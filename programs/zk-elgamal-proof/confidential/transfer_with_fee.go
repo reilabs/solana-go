@@ -9,8 +9,8 @@ import (
 // TransferWithFeeProofData is the proof data a confidential Transfer
 // instruction carries when the mint is extended for fees.
 type TransferWithFeeProofData struct {
-	// RemainingBalanceProofData proves the new encrypted balance equals a commitment
-	RemainingBalanceProofData *proofdata.CiphertextCommitmentEqualityProofData
+	// EqualityProofData proves the new encrypted balance equals a commitment
+	EqualityProofData *proofdata.CiphertextCommitmentEqualityProofData
 	// TransferAmountCiphertextValidityProofDataWithCiphertext proves the
 	// transfer amount lo/hiciphertexts are valid encryptions under the source,
 	// destination, and auditor keys, and carries the auditor's extracted lo/hi ciphertexts.
@@ -160,7 +160,7 @@ func TransferWithFeeSplitProofData(
 	}
 
 	return &TransferWithFeeProofData{
-		RemainingBalanceProofData:                               change.finalBalanceEqualityProof,
+		EqualityProofData: change.finalBalanceEqualityProof,
 		TransferAmountCiphertextValidityProofDataWithCiphertext: change.changeAmountCipherTextValidityProof,
 		PercentageWithCapProofData:                              percentageWithCapProofData,
 		FeeCiphertextValidityProofData:                          feeLoHiCiphertextValidity,
