@@ -53,12 +53,21 @@ func run(check bool) error {
 		}
 		cargoHome = filepath.Join(home, ".cargo")
 	}
+	sysroot, err := rustcOutput(crate, "--print", "sysroot")
+	if err != nil {
+		return err
+	}
+	commit, err := rustcCommitHash(crate)
+	if err != nil {
+		return err
+	}
 	// Remap machine-specific paths out of anything the compiler embeds; the
 	// \x1f-separated encoded form survives paths containing spaces (plain
 	// RUSTFLAGS is whitespace-split).
 	env := []string{"CARGO_ENCODED_RUSTFLAGS=" +
 		"--remap-path-prefix=" + cargoHome + "=/cargo\x1f" +
-		"--remap-path-prefix=" + crate + "=/build"}
+		"--remap-path-prefix=" + crate + "=/build\x1f" +
+		"--remap-path-prefix=" + filepath.Join(sysroot, "lib", "rustlib", "src", "rust") + "=/rustc/" + commit}
 	if err := cargo(crate, env, "build", "--target", "wasm32-wasip1", "--release", "--locked"); err != nil {
 		return err
 	}
@@ -96,6 +105,31 @@ func cargo(dir string, env []string, args ...string) error {
 		return fmt.Errorf("cargo %s failed: %w", args[0], err)
 	}
 	return nil
+}
+
+// rustcOutput runs rustc in the crate dir, and returns its trimmed stdout.
+func rustcOutput(crate string, args ...string) (string, error) {
+	cmd := exec.Command("rustc", args...)
+	cmd.Dir = crate
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("rustc %s failed: %w", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// rustcCommitHash returns the commit hash of the pinned rustc.
+func rustcCommitHash(crate string) (string, error) {
+	verbose, err := rustcOutput(crate, "-vV")
+	if err != nil {
+		return "", err
+	}
+	m := regexp.MustCompile(`(?m)^commit-hash: ([0-9a-f]{40})$`).FindStringSubmatch(verbose)
+	if m == nil {
+		return "", fmt.Errorf("no commit-hash in `rustc -vV` output; a rustc without one embeds unmappable stdlib paths")
+	}
+	return m[1], nil
 }
 
 // checkToolchain fails fast when the cargo in PATH won't honor the pin in rust-toolchain.toml
