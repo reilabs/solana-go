@@ -144,7 +144,7 @@ func (p *PubkeyValidityProofData) UnmarshalBinary(b []byte) error {
 }
 
 // PercentageWithCapProofData proves a fee computation: the percentage amount
-// is either the correct percentage of the delta amount or the cap.
+// is either the correct percentage of the transfer amount or the cap.
 type PercentageWithCapProofData struct {
 	Context PercentageWithCapProofContext
 	Proof   PercentageWithCapProof
