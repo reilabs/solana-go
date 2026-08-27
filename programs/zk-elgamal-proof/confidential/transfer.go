@@ -5,14 +5,6 @@ import (
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-// CiphertextValidityProofWithAuditorCiphertext bundles a lo/hi ciphertext
-// validity proof with the grouped ciphertexts it certifies.
-type CiphertextValidityProofWithAuditorCiphertext struct {
-	ProofData    *proofdata.BatchedGroupedCiphertext3HandlesValidityProofData
-	CiphertextLo encryption.GroupedElGamalCiphertext3
-	CiphertextHi encryption.GroupedElGamalCiphertext3
-}
-
 // TransferProofData is the proof data of confidential Transfer instruction.
 type TransferProofData struct {
 	// EqualityProofData proves the new balance ciphertext matches a commitment to the remaining amount.

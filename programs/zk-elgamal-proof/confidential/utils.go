@@ -31,6 +31,18 @@ func checkSpend(amount, balance uint64) error {
 	return nil
 }
 
+// CiphertextValidityProofWithAuditorCiphertext wraps a ciphertext validity proof along with two
+// single-key `lo` and `hi` ciphertexts.
+//
+// ProofData contains grouped ElGamal ciphertexts and a proof containing the validity of these ciphertexts.
+type CiphertextValidityProofWithAuditorCiphertext struct {
+	ProofData    *proofdata.BatchedGroupedCiphertext3HandlesValidityProofData
+	CiphertextLo encryption.ElGamalCiphertext
+	CiphertextHi encryption.ElGamalCiphertext
+}
+
+const auditorHandleIndex = 2
+
 // encryptAndProveAmount encrypts the lo/hi amount split under the three
 // public keys with fresh Pedersen openings and proves the grouped ciphertexts
 // are valid encryptions.
@@ -59,10 +71,18 @@ func encryptAndProveAmount(
 	if err != nil {
 		return
 	}
+	auditorCiphertextLo, err := groupedLo.ToElGamalCiphertext(auditorHandleIndex)
+	if err != nil {
+		return
+	}
+	auditorCiphertextHi, err := groupedHi.ToElGamalCiphertext(auditorHandleIndex)
+	if err != nil {
+		return
+	}
 	validity = CiphertextValidityProofWithAuditorCiphertext{
 		ProofData:    proofData,
-		CiphertextLo: groupedLo,
-		CiphertextHi: groupedHi,
+		CiphertextLo: auditorCiphertextLo,
+		CiphertextHi: auditorCiphertextHi,
 	}
 	return
 }
@@ -96,13 +116,14 @@ func encryptAndProveFeeAmount(
 }
 
 // combinedCiphertextForHandle extracts the lo and hi ElGamal ciphertexts for
-// the key at handle index and combines them into a single ciphertext of the full amount.
+// the key at handle index from the proof's grouped ciphertexts and combines
+// them into one single-key ciphertext of the full amount.
 func (v CiphertextValidityProofWithAuditorCiphertext) combinedCiphertextForHandle(index int, loBits uint8) (encryption.ElGamalCiphertext, error) {
-	lo, err := v.CiphertextLo.ToElGamalCiphertext(index)
+	lo, err := v.ProofData.Context.GroupedCiphertextLo.ToElGamalCiphertext(index)
 	if err != nil {
 		return encryption.ElGamalCiphertext{}, err
 	}
-	hi, err := v.CiphertextHi.ToElGamalCiphertext(index)
+	hi, err := v.ProofData.Context.GroupedCiphertextHi.ToElGamalCiphertext(index)
 	if err != nil {
 		return encryption.ElGamalCiphertext{}, err
 	}

@@ -14,7 +14,7 @@ type MintProofData struct {
 	SupplyEqualityProofData *proofdata.CiphertextCommitmentEqualityProofData
 	// CiphertextValidityProofDataWithCiphertext proves the lo/hi mint amount
 	// ciphertexts are valid encryptions under the destination, supply, and
-	// auditor keys, and carries those ciphertexts.
+	// auditor keys, and carries the auditor's extracted lo/hi ciphertexts.
 	CiphertextValidityProofDataWithCiphertext CiphertextValidityProofWithAuditorCiphertext
 	// RangeProofData proves the new supply and lo/hi mint amounts are in range.
 	RangeProofData *proofdata.BatchedRangeProofU128Data

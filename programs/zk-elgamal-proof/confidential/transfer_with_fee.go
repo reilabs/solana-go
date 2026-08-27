@@ -13,7 +13,7 @@ type TransferWithFeeProofData struct {
 	RemainingBalanceProofData *proofdata.CiphertextCommitmentEqualityProofData
 	// TransferAmountCiphertextValidityProofDataWithCiphertext proves the
 	// transfer amount lo/hiciphertexts are valid encryptions under the source,
-	// destination, and auditor keys.
+	// destination, and auditor keys, and carries the auditor's extracted lo/hi ciphertexts.
 	TransferAmountCiphertextValidityProofDataWithCiphertext CiphertextValidityProofWithAuditorCiphertext
 	// PercentageWithCapProofData proves the fee is either the correct
 	// percentage of the transfer amount or exactly the maximum fee.

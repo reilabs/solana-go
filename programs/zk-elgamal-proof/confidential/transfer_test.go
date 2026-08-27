@@ -85,7 +85,8 @@ func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint
 	decryptEquals(t, sender, newBalance, currentBalance-transferAmount, "new balance")
 
 	// The recipient and auditor recover the transfer amount from their
-	// handles (lo + hi<<16).
+	// handles (lo + hi<<16) in the proof context's grouped ciphertexts.
+	validityContext := validity.ProofData.Context
 	for _, holder := range []struct {
 		name  string
 		kp    *encryption.ElGamalKeypair
@@ -94,9 +95,14 @@ func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint
 		{"recipient", recipient, 1},
 		{"auditor", auditor, 2},
 	} {
-		got := decryptHandle(t, holder.kp, validity.CiphertextLo, validity.CiphertextHi, holder.index, AmountLoBitLength)
+		got := decryptHandle(t, holder.kp, validityContext.GroupedCiphertextLo, validityContext.GroupedCiphertextHi, holder.index, AmountLoBitLength)
 		if got != transferAmount {
 			t.Fatalf("%s decrypts transfer amount %d, want %d", holder.name, got, transferAmount)
 		}
+	}
+
+	// The extracted auditor ciphertexts decrypt to the transfer amount.
+	if got := decryptLoHiPair(t, auditor, validity.CiphertextLo, validity.CiphertextHi, AmountLoBitLength); got != transferAmount {
+		t.Fatalf("auditor decrypts extracted ciphertexts to %d, want %d", got, transferAmount)
 	}
 }

@@ -100,8 +100,14 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 	decryptEquals(t, sender, newBalance, remaining, "new balance")
 
 	// The recipient recovers the gross transfer amount from its handles.
-	if got := decryptHandle(t, recipient, validity.CiphertextLo, validity.CiphertextHi, 1, AmountLoBitLength); got != transferAmount {
+	validityContext := validity.ProofData.Context
+	if got := decryptHandle(t, recipient, validityContext.GroupedCiphertextLo, validityContext.GroupedCiphertextHi, 1, AmountLoBitLength); got != transferAmount {
 		t.Fatalf("recipient decrypts transfer amount %d, want %d", got, transferAmount)
+	}
+
+	// The extracted auditor ciphertexts decrypt to the transfer amount.
+	if got := decryptLoHiPair(t, auditor, validity.CiphertextLo, validity.CiphertextHi, AmountLoBitLength); got != transferAmount {
+		t.Fatalf("auditor decrypts extracted ciphertexts to %d, want %d", got, transferAmount)
 	}
 
 	// The withdraw withheld authority recovers the fee from the fee validity

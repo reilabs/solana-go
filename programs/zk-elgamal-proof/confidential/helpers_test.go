@@ -68,6 +68,13 @@ func handleCiphertexts(t *testing.T, lo, hi loHiCiphertext, index int) (encrypti
 func decryptHandle(t *testing.T, kp *encryption.ElGamalKeypair, lo, hi loHiCiphertext, index int, loBits uint8) uint64 {
 	t.Helper()
 	loCt, hiCt := handleCiphertexts(t, lo, hi, index)
+	return decryptLoHiPair(t, kp, loCt, hiCt, loBits)
+}
+
+// decryptLoHiPair recovers the amount an already-extracted lo/hi ElGamal
+// ciphertext pair encrypts under kp, recombined as lo + hi<<loBits.
+func decryptLoHiPair(t *testing.T, kp *encryption.ElGamalKeypair, loCt, hiCt encryption.ElGamalCiphertext, loBits uint8) uint64 {
+	t.Helper()
 	loAmount, err := kp.DecryptU32(loCt)
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +97,8 @@ func applyToBalance(
 	op func(a, b encryption.ElGamalCiphertext) (encryption.ElGamalCiphertext, error),
 ) encryption.ElGamalCiphertext {
 	t.Helper()
-	loCt, hiCt := handleCiphertexts(t, v.CiphertextLo, v.CiphertextHi, index)
+	ctx := v.ProofData.Context
+	loCt, hiCt := handleCiphertexts(t, ctx.GroupedCiphertextLo, ctx.GroupedCiphertextHi, index)
 	combined, err := encryption.CombineLoHiCiphertexts(loCt, hiCt, AmountLoBitLength)
 	if err != nil {
 		t.Fatal(err)

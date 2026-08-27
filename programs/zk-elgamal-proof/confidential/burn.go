@@ -11,7 +11,7 @@ type BurnProofData struct {
 	EqualityProofData *proofdata.CiphertextCommitmentEqualityProofData
 	// CiphertextValidityProofDataWithCiphertext proves the lo/hi burn amount
 	// ciphertexts are valid encryptions under the source, supply, and auditor
-	// keys, and carries those ciphertexts.
+	// keys, and carries the auditor's extracted lo/hi ciphertexts.
 	CiphertextValidityProofDataWithCiphertext CiphertextValidityProofWithAuditorCiphertext
 	// RangeProofData proves remaining and lo/hi burn amounts fit in 128 bits.
 	RangeProofData *proofdata.BatchedRangeProofU128Data

@@ -89,7 +89,8 @@ func testMintProofValidity(t *testing.T, mintAmount, currentSupply uint64) {
 	}
 
 	// The destination and auditor recover the mint amount from their handles
-	// (lo + hi<<16).
+	// (lo + hi<<16) in the proof context's grouped ciphertexts.
+	validityContext := validity.ProofData.Context
 	for _, holder := range []struct {
 		name  string
 		kp    *encryption.ElGamalKeypair
@@ -98,9 +99,14 @@ func testMintProofValidity(t *testing.T, mintAmount, currentSupply uint64) {
 		{"destination", destination, 0},
 		{"auditor", auditor, 2},
 	} {
-		got := decryptHandle(t, holder.kp, validity.CiphertextLo, validity.CiphertextHi, holder.index, AmountLoBitLength)
+		got := decryptHandle(t, holder.kp, validityContext.GroupedCiphertextLo, validityContext.GroupedCiphertextHi, holder.index, AmountLoBitLength)
 		if got != mintAmount {
 			t.Fatalf("%s decrypts mint amount %d, want %d", holder.name, got, mintAmount)
 		}
+	}
+
+	// The extracted auditor ciphertexts decrypt to the mint amount.
+	if got := decryptLoHiPair(t, auditor, validity.CiphertextLo, validity.CiphertextHi, AmountLoBitLength); got != mintAmount {
+		t.Fatalf("auditor decrypts extracted ciphertexts to %d, want %d", got, mintAmount)
 	}
 }

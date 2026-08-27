@@ -65,7 +65,8 @@ func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
 	decryptEquals(t, source, newBalance, currentBalance-burnAmount, "new balance")
 
 	// The supply and auditor recover the burn amount from their handles
-	// (lo + hi<<16).
+	// (lo + hi<<16) in the proof context's grouped ciphertexts.
+	validityContext := validity.ProofData.Context
 	for _, holder := range []struct {
 		name  string
 		kp    *encryption.ElGamalKeypair
@@ -74,9 +75,14 @@ func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
 		{"supply", supply, 1},
 		{"auditor", auditor, 2},
 	} {
-		got := decryptHandle(t, holder.kp, validity.CiphertextLo, validity.CiphertextHi, holder.index, AmountLoBitLength)
+		got := decryptHandle(t, holder.kp, validityContext.GroupedCiphertextLo, validityContext.GroupedCiphertextHi, holder.index, AmountLoBitLength)
 		if got != burnAmount {
 			t.Fatalf("%s decrypts burn amount %d, want %d", holder.name, got, burnAmount)
 		}
+	}
+
+	// The extracted auditor ciphertexts decrypt to the burn amount.
+	if got := decryptLoHiPair(t, auditor, validity.CiphertextLo, validity.CiphertextHi, AmountLoBitLength); got != burnAmount {
+		t.Fatalf("auditor decrypts extracted ciphertexts to %d, want %d", got, burnAmount)
 	}
 }
