@@ -22,6 +22,7 @@ var poolSize = runtime.NumCPU()
 
 const ALLOC_FUNC = "zk_alloc"
 const FREE_FUNC = "zk_free"
+const MEMORY_PAGE_LIMIT = 256
 
 var (
 	initOnce     sync.Once
@@ -41,7 +42,8 @@ func init() {
 
 func initWasmRuntime() {
 	ctx := context.Background()
-	rt := wazero.NewRuntime(ctx)
+	rt := wazero.NewRuntimeWithConfig(ctx,
+		wazero.NewRuntimeConfig().WithMemoryLimitPages(MEMORY_PAGE_LIMIT))
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, rt); err != nil {
 		rt.Close(ctx)
 		initErr = fmt.Errorf("zk: instantiating WASI host module: %w", err)
