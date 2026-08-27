@@ -5,20 +5,19 @@ import (
 	cryptorand "crypto/rand"
 	_ "embed"
 	"fmt"
-	"runtime"
 	"sync"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+
+	zk "github.com/gagliardetto/solana-go/programs/zk-elgamal-proof"
 )
 
 // Solana-zk-sdk Rust prover compiled to wasm32.
 //
 //go:embed solana_zk_sdk_wasm.wasm
 var bridgeWasm []byte
-
-var poolSize = runtime.NumCPU()
 
 const ALLOC_FUNC = "zk_alloc"
 const FREE_FUNC = "zk_free"
@@ -29,16 +28,9 @@ var (
 	initErr      error
 	wasmRuntime  wazero.Runtime
 	wasmCompiled wazero.CompiledModule
-	// instancePool holds poolSize wasm instances, each initialized to nil
-	instancePool = make(chan api.Module, poolSize)
+	// instancePool holds zk.MaxConcurrency() wasm instances, each initialized to nil.
+	instancePool chan api.Module
 )
-
-// init seeds the pool with poolSize nil instances
-func init() {
-	for i := 0; i < poolSize; i++ {
-		instancePool <- nil
-	}
-}
 
 func initWasmRuntime() {
 	ctx := context.Background()
@@ -57,6 +49,13 @@ func initWasmRuntime() {
 	}
 	wasmRuntime = rt
 	wasmCompiled = compiled
+
+	// Initialize pool of zk.MaxConcurrency() instances.
+	size := zk.MaxConcurrency()
+	instancePool = make(chan api.Module, size)
+	for i := 0; i < size; i++ {
+		instancePool <- nil
+	}
 }
 
 // getInstance takes slot from pool, instantiating slot if nil.
