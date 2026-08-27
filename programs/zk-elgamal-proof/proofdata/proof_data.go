@@ -15,7 +15,8 @@ type ProofData interface {
 	ProofType() ProofType
 	// Bytes is the pod serialization that a VerifyProof instruction carries.
 	Bytes() []byte
-	// Verify checks the proof against its context data.
+	// Verify checks the proof against its context data, by running
+	// solana-zk-sdk's verifier inside the embedded wasm.
 	Verify() error
 	// UnmarshalBinary parses the pod serialization produced by Bytes.
 	encoding.BinaryUnmarshaler
