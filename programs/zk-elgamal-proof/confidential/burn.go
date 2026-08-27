@@ -21,7 +21,7 @@ type BurnProofData struct {
 //
 // currentAvailableBalanceCiphertext is the source account's available
 // balance ciphertext and currentDecryptableAvailableBalance is its AE
-// encryption under aeKey. A nil auditorPubkey indicates no auditor.
+// encryption under aesKey. A nil auditorPubkey indicates no auditor.
 func BurnSplitProofData(
 	currentAvailableBalanceEGCiphertext encryption.ElGamalCiphertext,
 	currentDecryptableAvailableBalanceAESCiphertext encryption.AeCiphertext,

@@ -11,21 +11,21 @@ import (
 func generateSourceAccount(t *testing.T) (*encryption.ElGamalKeypair, encryption.AeKey) {
 	t.Helper()
 	kp := zktest.GenKeyPair(t)
-	aeKey, err := encryption.NewAeKey()
+	aesKey, err := encryption.NewAeKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return kp, aeKey
+	return kp, aesKey
 }
 
 // encryptBalance encrypts balance under both the ElGamal pubkey and the AE key.
-func encryptBalance(t *testing.T, kp *encryption.ElGamalKeypair, aeKey encryption.AeKey, balance uint64) (encryption.ElGamalCiphertext, encryption.AeCiphertext) {
+func encryptBalance(t *testing.T, kp *encryption.ElGamalKeypair, aesKey encryption.AeKey, balance uint64) (encryption.ElGamalCiphertext, encryption.AeCiphertext) {
 	t.Helper()
 	balanceCt, err := kp.Pubkey.Encrypt(balance)
 	if err != nil {
 		t.Fatal(err)
 	}
-	decryptable, err := aeKey.Encrypt(balance)
+	decryptable, err := aesKey.Encrypt(balance)
 	if err != nil {
 		t.Fatal(err)
 	}

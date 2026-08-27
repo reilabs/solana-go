@@ -23,7 +23,7 @@ type TransferProofData struct {
 //
 // currentAvailableBalance is the source account's available balance
 // ciphertext and currentDecryptableAvailableBalance its AE encryption under
-// aeKey. A nil auditorPubkey stands in for a mint with no auditor.
+// aesKey. A nil auditorPubkey stands in for a mint with no auditor.
 func TransferSplitProofData(
 	currentAvailableBalance encryption.ElGamalCiphertext,
 	currentDecryptableAvailableBalance encryption.AeCiphertext,

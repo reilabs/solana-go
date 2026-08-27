@@ -42,13 +42,13 @@ func TestBurnProofData(t *testing.T) {
 }
 
 func testBurnProofValidity(t *testing.T, currentBalance, burnAmount uint64) {
-	source, aeKey := generateSourceAccount(t)
+	source, aesKey := generateSourceAccount(t)
 	supply := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 
-	balanceCt, decryptable := encryptBalance(t, source, aeKey, currentBalance)
+	balanceCt, decryptable := encryptBalance(t, source, aesKey, currentBalance)
 	proofs, err := BurnSplitProofData(balanceCt, decryptable, burnAmount,
-		source, aeKey, supply.Pubkey, &auditor.Pubkey)
+		source, aesKey, supply.Pubkey, &auditor.Pubkey)
 	if err != nil {
 		t.Fatal(err)
 	}

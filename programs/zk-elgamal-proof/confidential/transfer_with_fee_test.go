@@ -43,7 +43,7 @@ func TestTransferWithFeeProofData(t *testing.T) {
 	}
 
 	// Structural violations are rejected before any proof work.
-	sender, aeKey := generateSourceAccount(t)
+	sender, aesKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 	withdrawAuthority := zktest.GenKeyPair(t)
@@ -52,16 +52,16 @@ func TestTransferWithFeeProofData(t *testing.T) {
 		feeRate        = uint16(250)
 		maximumFee     = uint64(10_000)
 	)
-	balanceCt, decryptable := encryptBalance(t, sender, aeKey, currentBalance)
+	balanceCt, decryptable := encryptBalance(t, sender, aesKey, currentBalance)
 	if _, err := TransferWithFeeSplitProofData(
-		balanceCt, decryptable, currentBalance+1, sender, aeKey,
+		balanceCt, decryptable, currentBalance+1, sender, aesKey,
 		recipient.Pubkey, &auditor.Pubkey, withdrawAuthority.Pubkey,
 		feeRate, maximumFee); !errors.Is(err, ErrNotEnoughFunds) {
 		t.Fatalf("transfer exceeding balance: got %v, want ErrNotEnoughFunds", err)
 	}
-	_, bigDecryptable := encryptBalance(t, sender, aeKey, 1<<50)
+	_, bigDecryptable := encryptBalance(t, sender, aesKey, 1<<50)
 	if _, err := TransferWithFeeSplitProofData(
-		balanceCt, bigDecryptable, 1<<49, sender, aeKey,
+		balanceCt, bigDecryptable, 1<<49, sender, aesKey,
 		recipient.Pubkey, &auditor.Pubkey, withdrawAuthority.Pubkey,
 		feeRate, maximumFee); !errors.Is(err, ErrIllegalAmountBitLength) {
 		t.Fatalf("transfer exceeding 48-bit amount limit: got %v, want ErrIllegalAmountBitLength", err)
@@ -72,14 +72,14 @@ func testTransferWithFeeProofValidity(t *testing.T, currentBalance, transferAmou
 	remaining := currentBalance - transferAmount
 	feeAmount := min((transferAmount*uint64(feeRate)+9_999)/10_000, maximumFee)
 
-	sender, aeKey := generateSourceAccount(t)
+	sender, aesKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 	withdrawAuthority := zktest.GenKeyPair(t)
 
-	balanceCt, decryptable := encryptBalance(t, sender, aeKey, currentBalance)
+	balanceCt, decryptable := encryptBalance(t, sender, aesKey, currentBalance)
 	proofs, err := TransferWithFeeSplitProofData(
-		balanceCt, decryptable, transferAmount, sender, aeKey,
+		balanceCt, decryptable, transferAmount, sender, aesKey,
 		recipient.Pubkey, &auditor.Pubkey, withdrawAuthority.Pubkey,
 		feeRate, maximumFee)
 	if err != nil {

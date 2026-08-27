@@ -29,11 +29,11 @@ func TestTransferProofData(t *testing.T) {
 
 	// A mint without an auditor: the proofs still verify.
 	t.Run("no auditor", func(t *testing.T) {
-		sender, aeKey := generateSourceAccount(t)
+		sender, aesKey := generateSourceAccount(t)
 		recipient := zktest.GenKeyPair(t)
-		balanceCt, decryptable := encryptBalance(t, sender, aeKey, 1000)
+		balanceCt, decryptable := encryptBalance(t, sender, aesKey, 1000)
 		proofs, err := TransferSplitProofData(balanceCt, decryptable, 500,
-			sender, aeKey, recipient.Pubkey, nil)
+			sender, aesKey, recipient.Pubkey, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -45,30 +45,30 @@ func TestTransferProofData(t *testing.T) {
 	})
 
 	// Structural violations are rejected before any proof work.
-	sender, aeKey := generateSourceAccount(t)
+	sender, aesKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 	const currentBalance = uint64(1_000_000)
-	balanceCt, decryptable := encryptBalance(t, sender, aeKey, currentBalance)
+	balanceCt, decryptable := encryptBalance(t, sender, aesKey, currentBalance)
 	if _, err := TransferSplitProofData(balanceCt, decryptable, currentBalance+1,
-		sender, aeKey, recipient.Pubkey, &auditor.Pubkey); !errors.Is(err, ErrNotEnoughFunds) {
+		sender, aesKey, recipient.Pubkey, &auditor.Pubkey); !errors.Is(err, ErrNotEnoughFunds) {
 		t.Fatalf("transfer exceeding balance: got %v, want ErrNotEnoughFunds", err)
 	}
-	_, bigDecryptable := encryptBalance(t, sender, aeKey, 1<<50)
+	_, bigDecryptable := encryptBalance(t, sender, aesKey, 1<<50)
 	if _, err := TransferSplitProofData(balanceCt, bigDecryptable, 1<<49,
-		sender, aeKey, recipient.Pubkey, &auditor.Pubkey); !errors.Is(err, ErrIllegalAmountBitLength) {
+		sender, aesKey, recipient.Pubkey, &auditor.Pubkey); !errors.Is(err, ErrIllegalAmountBitLength) {
 		t.Fatalf("transfer exceeding 48-bit amount limit: got %v, want ErrIllegalAmountBitLength", err)
 	}
 }
 
 func testTransferProofValidity(t *testing.T, currentBalance, transferAmount uint64) {
-	sender, aeKey := generateSourceAccount(t)
+	sender, aesKey := generateSourceAccount(t)
 	recipient := zktest.GenKeyPair(t)
 	auditor := zktest.GenKeyPair(t)
 
-	balanceCt, decryptable := encryptBalance(t, sender, aeKey, currentBalance)
+	balanceCt, decryptable := encryptBalance(t, sender, aesKey, currentBalance)
 	proofs, err := TransferSplitProofData(balanceCt, decryptable, transferAmount,
-		sender, aeKey, recipient.Pubkey, &auditor.Pubkey)
+		sender, aesKey, recipient.Pubkey, &auditor.Pubkey)
 	if err != nil {
 		t.Fatal(err)
 	}
