@@ -101,12 +101,6 @@ func initInstance() (mod api.Module, err error) {
 		}
 	}()
 
-	// Run the guest program's _initialize function.
-	if initFn := mod.ExportedFunction("_initialize"); initFn != nil {
-		if _, err = initFn.Call(ctx); err != nil {
-			return mod, fmt.Errorf("zk: running module _initialize: %w", err)
-		}
-	}
 	// Make sure that expected memory functions are exported by the WASM ABI
 	for _, name := range []string{ALLOC_FUNC, FREE_FUNC} {
 		if mod.ExportedFunction(name) == nil {
