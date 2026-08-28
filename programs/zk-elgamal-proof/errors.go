@@ -17,6 +17,9 @@ const (
 	OOM                      = -6
 )
 
+// Sentinel errors for the status codes above.
+//
+// ErrDecryption covers a failed AE decryption, which rust SDK classifies as IllegalAmountBitLength.
 var (
 	ErrBadInput          = errors.New("zk: invalid input encoding")
 	ErrProofGeneration   = errors.New("zk: proof generation failed")

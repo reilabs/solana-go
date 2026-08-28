@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	zk "github.com/gagliardetto/solana-go/programs/zk-elgamal-proof"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/zktest"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
@@ -58,6 +59,15 @@ func TestTransferProofData(t *testing.T) {
 	if _, err := TransferSplitProofData(balanceCt, bigDecryptable, 1<<49,
 		sender, aesKey, recipient.Pubkey, &auditor.Pubkey); !errors.Is(err, ErrIllegalAmountBitLength) {
 		t.Fatalf("transfer exceeding 48-bit amount limit: got %v, want ErrIllegalAmountBitLength", err)
+	}
+
+	wrongKey, err := encryption.NewAeKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := TransferSplitProofData(balanceCt, decryptable, 1,
+		sender, wrongKey, recipient.Pubkey, &auditor.Pubkey); !errors.Is(err, zk.ErrDecryption) {
+		t.Fatalf("transfer with undecryptable balance: got %v, want zk.ErrDecryption", err)
 	}
 }
 
