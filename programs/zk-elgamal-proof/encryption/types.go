@@ -4,17 +4,19 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
 )
 
 var ErrZeroSecretKey = errors.New("zk: ElGamal secret key is zero")
 
 type ElGamalKeypair struct {
 	Pubkey ElGamalPubkey
-	Secret ElGamalSecretKey
+	Secret zkencryption.ElGamalSecretKey
 }
 
 func (kp *ElGamalKeypair) MarshalBinary() ([]byte, error) {
-	if kp.Secret.isZero() {
+	if kp.Secret == (zkencryption.ElGamalSecretKey{}) {
 		return nil, ErrZeroSecretKey
 	}
 	out := make([]byte, 0, 64)
@@ -35,17 +37,15 @@ type ElGamalPubkey [32]byte
 
 func (pk ElGamalPubkey) MarshalBinary() ([]byte, error) { return bytes.Clone(pk[:]), nil }
 
-type ElGamalSecretKey [32]byte
+// secretKeyArg marshals a zkencryption.ElGamalSecretKey into a wasm call
+// argument, rejecting the zero key.
+type secretKeyArg zkencryption.ElGamalSecretKey
 
-func (sk ElGamalSecretKey) MarshalBinary() ([]byte, error) {
-	if sk.isZero() {
+func (sk secretKeyArg) MarshalBinary() ([]byte, error) {
+	if sk == (secretKeyArg{}) {
 		return nil, ErrZeroSecretKey
 	}
 	return bytes.Clone(sk[:]), nil
-}
-
-func (sk ElGamalSecretKey) isZero() bool {
-	return sk == ElGamalSecretKey{}
 }
 
 // ElGamalCiphertext is of form [Pedersen commitment, decrypt handle].
@@ -95,12 +95,12 @@ func (g *GroupedElGamalCiphertext3) UnmarshalBinary(b []byte) error { return cop
 
 func (g GroupedElGamalCiphertext3) MarshalBinary() ([]byte, error) { return bytes.Clone(g[:]), nil }
 
-// AES-GCM-SIV key
-type AeKey [16]byte
+// aeKeyArg is secretKeyArg for the AES-GCM-SIV key zkencryption.AeKey.
+type aeKeyArg zkencryption.AeKey
 
-func (k *AeKey) UnmarshalBinary(b []byte) error { return copyExact(k[:], b) }
+func (k *aeKeyArg) UnmarshalBinary(b []byte) error { return copyExact(k[:], b) }
 
-func (k AeKey) MarshalBinary() ([]byte, error) { return bytes.Clone(k[:]), nil }
+func (k aeKeyArg) MarshalBinary() ([]byte, error) { return bytes.Clone(k[:]), nil }
 
 // Authenticated encryption of a u64 amount.
 type AeCiphertext [36]byte

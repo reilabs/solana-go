@@ -1,6 +1,9 @@
 package encryption
 
-import "github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/bridge"
+import (
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
+	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/bridge"
+)
 
 // NewElGamalKeypair generates a random ElGamal keypair.
 //
@@ -14,8 +17,8 @@ func NewElGamalKeypair() (*ElGamalKeypair, error) {
 }
 
 // ElGamalKeypairFromSecret derives the public key for secret
-func ElGamalKeypairFromSecret(secret ElGamalSecretKey) (*ElGamalKeypair, error) {
-	kp, err := bridge.InvokeWith[ElGamalKeypair]("elgamal_keypair_from_secret", secret)
+func ElGamalKeypairFromSecret(secret zkencryption.ElGamalSecretKey) (*ElGamalKeypair, error) {
+	kp, err := bridge.InvokeWith[ElGamalKeypair]("elgamal_keypair_from_secret", secretKeyArg(secret))
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +37,7 @@ func (pk ElGamalPubkey) EncryptWith(amount uint64, opening PedersenOpening) (ElG
 
 // DecryptU32 decrypts a ciphertext whose plaintext is known to fit in 32 bits.
 func (kp *ElGamalKeypair) DecryptU32(ct ElGamalCiphertext) (uint64, error) {
-	amount, err := bridge.InvokeWith[bridge.Scalar]("elgamal_decrypt_u32", kp.Secret, ct)
+	amount, err := bridge.InvokeWith[bridge.Scalar]("elgamal_decrypt_u32", secretKeyArg(kp.Secret), ct)
 	return uint64(amount), err
 }
 

@@ -3,12 +3,13 @@ package confidential
 import (
 	"testing"
 
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/zktest"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
 
-func generateSourceAccount(t *testing.T) (*encryption.ElGamalKeypair, encryption.AeKey) {
+func generateSourceAccount(t *testing.T) (*encryption.ElGamalKeypair, zkencryption.AeKey) {
 	t.Helper()
 	kp := zktest.GenKeyPair(t)
 	aesKey, err := encryption.NewAeKey()
@@ -19,13 +20,13 @@ func generateSourceAccount(t *testing.T) (*encryption.ElGamalKeypair, encryption
 }
 
 // encryptBalance encrypts balance under both the ElGamal pubkey and the AE key.
-func encryptBalance(t *testing.T, kp *encryption.ElGamalKeypair, aesKey encryption.AeKey, balance uint64) (encryption.ElGamalCiphertext, encryption.AeCiphertext) {
+func encryptBalance(t *testing.T, kp *encryption.ElGamalKeypair, aesKey zkencryption.AeKey, balance uint64) (encryption.ElGamalCiphertext, encryption.AeCiphertext) {
 	t.Helper()
 	balanceCt, err := kp.Pubkey.Encrypt(balance)
 	if err != nil {
 		t.Fatal(err)
 	}
-	decryptable, err := aesKey.Encrypt(balance)
+	decryptable, err := encryption.AeEncrypt(aesKey, balance)
 	if err != nil {
 		t.Fatal(err)
 	}

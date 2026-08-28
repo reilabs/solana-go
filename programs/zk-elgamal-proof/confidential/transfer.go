@@ -1,6 +1,7 @@
 package confidential
 
 import (
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
@@ -29,11 +30,11 @@ func TransferSplitProofData(
 	currentDecryptableAvailableBalance encryption.AeCiphertext,
 	transferAmount uint64,
 	sourceKeypair *encryption.ElGamalKeypair,
-	aesKey encryption.AeKey,
+	aesKey zkencryption.AeKey,
 	destinationPubkey encryption.ElGamalPubkey,
 	auditorPubkey *encryption.ElGamalPubkey,
 ) (*TransferProofData, error) {
-	currentBalanceAmount, err := aesKey.Decrypt(currentDecryptableAvailableBalance)
+	currentBalanceAmount, err := encryption.AeDecrypt(aesKey, currentDecryptableAvailableBalance)
 	if err != nil {
 		return nil, err
 	}

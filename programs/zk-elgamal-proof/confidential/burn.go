@@ -1,6 +1,7 @@
 package confidential
 
 import (
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 )
@@ -27,11 +28,11 @@ func BurnSplitProofData(
 	currentDecryptableAvailableBalanceAESCiphertext encryption.AeCiphertext,
 	burnAmountPlaintext uint64,
 	sourceKeypair *encryption.ElGamalKeypair,
-	aesKey encryption.AeKey,
+	aesKey zkencryption.AeKey,
 	supplyPubkey encryption.ElGamalPubkey,
 	auditorPubkey *encryption.ElGamalPubkey,
 ) (*BurnProofData, error) {
-	currentBalancePlaintext, err := aesKey.Decrypt(currentDecryptableAvailableBalanceAESCiphertext)
+	currentBalancePlaintext, err := encryption.AeDecrypt(aesKey, currentDecryptableAvailableBalanceAESCiphertext)
 	if err != nil {
 		return nil, err
 	}

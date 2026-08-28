@@ -3,12 +3,13 @@ package encryption_test
 import (
 	"testing"
 
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/zktest"
 )
 
 func TestElGamalKeypairFromSecretIsDeterministic(t *testing.T) {
-	var secret encryption.ElGamalSecretKey
+	var secret zkencryption.ElGamalSecretKey
 	secret[0] = 7 // canonical scalar
 
 	first, err := encryption.ElGamalKeypairFromSecret(secret)

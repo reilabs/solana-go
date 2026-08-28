@@ -3,6 +3,7 @@ package encryption_test
 import (
 	"testing"
 
+	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
 	zk "github.com/gagliardetto/solana-go/programs/zk-elgamal-proof"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/internal/zktest"
@@ -14,11 +15,11 @@ func TestAeEncryptDecrypt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ct, err := key.Encrypt(amount)
+	ct, err := encryption.AeEncrypt(key, amount)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := key.Decrypt(ct)
+	got, err := encryption.AeDecrypt(key, ct)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +27,7 @@ func TestAeEncryptDecrypt(t *testing.T) {
 		t.Fatalf("decrypted %d, want %d", got, amount)
 	}
 
-	var wrongKey encryption.AeKey
-	_, err = wrongKey.Decrypt(ct)
+	var wrongKey zkencryption.AeKey
+	_, err = encryption.AeDecrypt(wrongKey, ct)
 	zktest.ExpectStatusError(t, err, zk.DECRYPTION_ERROR)
 }
