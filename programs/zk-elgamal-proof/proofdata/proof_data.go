@@ -369,6 +369,37 @@ const (
 	ProofTypeBatchedGroupedCiphertext3HandlesValidity ProofType = 12
 )
 
+// NewProofData returns an empty proof data value of the type t tags.
+func NewProofData(t ProofType) ProofData {
+	switch t {
+	case ProofTypeZeroCiphertext:
+		return new(ZeroCiphertextProofData)
+	case ProofTypeCiphertextCiphertextEquality:
+		return new(CiphertextCiphertextEqualityProofData)
+	case ProofTypeCiphertextCommitmentEquality:
+		return new(CiphertextCommitmentEqualityProofData)
+	case ProofTypePubkeyValidity:
+		return new(PubkeyValidityProofData)
+	case ProofTypePercentageWithCap:
+		return new(PercentageWithCapProofData)
+	case ProofTypeBatchedRangeProofU64:
+		return new(BatchedRangeProofU64Data)
+	case ProofTypeBatchedRangeProofU128:
+		return new(BatchedRangeProofU128Data)
+	case ProofTypeBatchedRangeProofU256:
+		return new(BatchedRangeProofU256Data)
+	case ProofTypeGroupedCiphertext2HandlesValidity:
+		return new(GroupedCiphertext2HandlesValidityProofData)
+	case ProofTypeBatchedGroupedCiphertext2HandlesValidity:
+		return new(BatchedGroupedCiphertext2HandlesValidityProofData)
+	case ProofTypeGroupedCiphertext3HandlesValidity:
+		return new(GroupedCiphertext3HandlesValidityProofData)
+	case ProofTypeBatchedGroupedCiphertext3HandlesValidity:
+		return new(BatchedGroupedCiphertext3HandlesValidityProofData)
+	}
+	return nil
+}
+
 // ErrInvalidProofType reports a proof type outside the range the program
 // defines. It mirrors the Rust `ProofTypeError::InvalidProofType`.
 var ErrInvalidProofType = errors.New("zk: invalid proof type")

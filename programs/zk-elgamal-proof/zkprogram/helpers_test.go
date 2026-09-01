@@ -12,34 +12,11 @@ const NumProofTypes = 12
 // newProofData returns a zero value of a proof data type.
 func newProofData(t *testing.T, typ proofdata.ProofType) proofdata.ProofData {
 	t.Helper()
-	switch typ {
-	case proofdata.ProofTypeZeroCiphertext:
-		return new(proofdata.ZeroCiphertextProofData)
-	case proofdata.ProofTypeCiphertextCiphertextEquality:
-		return new(proofdata.CiphertextCiphertextEqualityProofData)
-	case proofdata.ProofTypeCiphertextCommitmentEquality:
-		return new(proofdata.CiphertextCommitmentEqualityProofData)
-	case proofdata.ProofTypePubkeyValidity:
-		return new(proofdata.PubkeyValidityProofData)
-	case proofdata.ProofTypePercentageWithCap:
-		return new(proofdata.PercentageWithCapProofData)
-	case proofdata.ProofTypeBatchedRangeProofU64:
-		return new(proofdata.BatchedRangeProofU64Data)
-	case proofdata.ProofTypeBatchedRangeProofU128:
-		return new(proofdata.BatchedRangeProofU128Data)
-	case proofdata.ProofTypeBatchedRangeProofU256:
-		return new(proofdata.BatchedRangeProofU256Data)
-	case proofdata.ProofTypeGroupedCiphertext2HandlesValidity:
-		return new(proofdata.GroupedCiphertext2HandlesValidityProofData)
-	case proofdata.ProofTypeBatchedGroupedCiphertext2HandlesValidity:
-		return new(proofdata.BatchedGroupedCiphertext2HandlesValidityProofData)
-	case proofdata.ProofTypeGroupedCiphertext3HandlesValidity:
-		return new(proofdata.GroupedCiphertext3HandlesValidityProofData)
-	case proofdata.ProofTypeBatchedGroupedCiphertext3HandlesValidity:
-		return new(proofdata.BatchedGroupedCiphertext3HandlesValidityProofData)
+	data := proofdata.NewProofData(typ)
+	if data == nil {
+		t.Fatalf("no proof data type for %s", typ)
 	}
-	t.Fatalf("no proof data type for %s", typ)
-	return nil
+	return data
 }
 
 // fillProofData returns proof data of the given type whose every byte is

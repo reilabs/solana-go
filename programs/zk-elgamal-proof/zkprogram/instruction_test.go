@@ -27,6 +27,10 @@ func TestProofDataRoundTrip(t *testing.T) {
 				t.Fatalf("Data: %v", err)
 			}
 
+			if _, err := DecodeInstruction(nil, data); err != nil {
+				t.Errorf("DecodeInstruction: %v", err)
+			}
+
 			got, ok := InstructionType(data)
 			if !ok {
 				t.Fatal("InstructionType did not recognize the encoded data")

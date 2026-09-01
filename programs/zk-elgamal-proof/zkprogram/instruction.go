@@ -117,14 +117,36 @@ func (i ProofInstruction) EncodeVerifyProofFromAccount(
 	return solana.NewInstruction(ProgramID, accounts, data), nil
 }
 
-// DecodeInstruction wraps a compiled proof program instruction back into a generic instruction.
+// DecodeInstruction wraps a compiled proof program instruction back into a generic instruction
 func DecodeInstruction(accounts []*solana.AccountMeta, data []byte) (*solana.GenericInstruction, error) {
 	typ, ok := InstructionType(data)
 	if !ok {
 		return nil, fmt.Errorf("zk: not a proof program instruction: % x", data)
 	}
-	if typ == CloseContextState && len(data) != 1 {
-		return nil, fmt.Errorf("zk: CloseContextState takes no instruction data, got %d bytes", len(data)-1)
+	if typ == CloseContextState {
+		if len(data) != 1 {
+			return nil, fmt.Errorf("zk: CloseContextState takes no instruction data, got %d bytes", len(data)-1)
+		}
+		if len(accounts) != 3 {
+			return nil, fmt.Errorf("zk: CloseContextState takes 3 accounts, got %d", len(accounts))
+		}
+		return solana.NewInstruction(ProgramID, accounts, data), nil
+	}
+	proofLen := len(proofdata.NewProofData(proofdata.ProofType(typ)).Bytes())
+	switch len(data) {
+	// The program treats 5-byte data as the proof-from-account form: the
+	// discriminant followed by a u32 offset into the proof account.
+	case 5:
+		if len(accounts) != 1 && len(accounts) != 3 {
+			return nil, fmt.Errorf("zk: %s reading a proof account takes 1 or 3 accounts, got %d", typ, len(accounts))
+		}
+	case 1 + proofLen:
+		if len(accounts) != 0 && len(accounts) != 2 {
+			return nil, fmt.Errorf("zk: %s with inlined proof data takes 0 or 2 accounts, got %d", typ, len(accounts))
+		}
+	default:
+		return nil, fmt.Errorf("zk: %s takes %d bytes of proof data or a 4-byte proof account offset, got %d bytes",
+			typ, proofLen, len(data)-1)
 	}
 	return solana.NewInstruction(ProgramID, accounts, data), nil
 }
