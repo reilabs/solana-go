@@ -24,8 +24,8 @@ const (
 	ConfidentialTransfer_DisableConfidentialCredits
 	ConfidentialTransfer_EnableNonConfidentialCredits
 	ConfidentialTransfer_DisableNonConfidentialCredits
-	ConfidentialTransfer_TransferWithSplitProofs
-	ConfidentialTransfer_TransferWithSplitProofsInParallel
+	ConfidentialTransfer_TransferWithFee
+	ConfidentialTransfer_ConfigureAccountWithRegistry
 )
 
 // ConfidentialTransferExtension is the instruction wrapper for the ConfidentialTransfer extension (ID 27).
@@ -78,7 +78,7 @@ func (inst *ConfidentialTransferExtension) EncodeToTree(parent ag_treeout.Branch
 		"EmptyAccount", "Deposit", "Withdraw", "Transfer",
 		"ApplyPendingBalance", "EnableConfidentialCredits", "DisableConfidentialCredits",
 		"EnableNonConfidentialCredits", "DisableNonConfidentialCredits",
-		"TransferWithSplitProofs", "TransferWithSplitProofsInParallel",
+		"TransferWithFee", "ConfigureAccountWithRegistry",
 	}
 	name := "Unknown"
 	if int(inst.SubInstruction) < len(names) {
