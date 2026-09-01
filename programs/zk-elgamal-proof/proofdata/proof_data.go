@@ -3,6 +3,7 @@ package proofdata
 import (
 	"encoding"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
@@ -15,14 +16,19 @@ type ProofData interface {
 	ProofType() ProofType
 	// Bytes is the pod serialization that a VerifyProof instruction carries.
 	Bytes() []byte
+	// ContextData is the public statement the proof certifies.
+	ContextData() ProofContext
 	// Verify checks the proof against its context data, by running
 	// solana-zk-sdk's verifier inside the embedded wasm.
 	Verify() error
 	// UnmarshalBinary parses the pod serialization produced by Bytes.
 	encoding.BinaryUnmarshaler
+}
 
-	// fields lists the pod fields in serialization order.
-	fields() [][]byte
+// ProofContext is the public statement that a proof certifies.
+type ProofContext interface {
+	Bytes() []byte
+	encoding.BinaryUnmarshaler
 }
 
 func verifyProofData(p ProofData) error {
@@ -61,15 +67,14 @@ type ZeroCiphertextProofContext struct {
 	Ciphertext encryption.ElGamalCiphertext
 }
 
-func (p *ZeroCiphertextProofData) fields() [][]byte {
-	return [][]byte{p.Context.Pubkey[:], p.Context.Ciphertext[:], p.Proof[:]}
-}
-func (p *ZeroCiphertextProofData) ProofType() ProofType { return ProofTypeZeroCiphertext }
-func (p *ZeroCiphertextProofData) Bytes() []byte        { return concatFields(p.fields()...) }
-func (p *ZeroCiphertextProofData) Verify() error        { return verifyProofData(p) }
-func (p *ZeroCiphertextProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
-}
+func (p *ZeroCiphertextProofData) ProofType() ProofType           { return ProofTypeZeroCiphertext }
+func (p *ZeroCiphertextProofData) Bytes() []byte                  { return podBytes(p) }
+func (p *ZeroCiphertextProofData) ContextData() ProofContext      { return &p.Context }
+func (p *ZeroCiphertextProofData) Verify() error                  { return verifyProofData(p) }
+func (p *ZeroCiphertextProofData) UnmarshalBinary(b []byte) error { return podRead(p, b) }
+
+func (c *ZeroCiphertextProofContext) Bytes() []byte                  { return podBytes(c) }
+func (c *ZeroCiphertextProofContext) UnmarshalBinary(b []byte) error { return podRead(c, b) }
 
 // CiphertextCiphertextEqualityProofData proves that two ciphertexts encrypt
 // the same amount.
@@ -85,17 +90,17 @@ type CiphertextCiphertextEqualityProofContext struct {
 	SecondCiphertext encryption.ElGamalCiphertext
 }
 
-func (p *CiphertextCiphertextEqualityProofData) fields() [][]byte {
-	return [][]byte{p.Context.FirstPubkey[:], p.Context.SecondPubkey[:],
-		p.Context.FirstCiphertext[:], p.Context.SecondCiphertext[:], p.Proof[:]}
-}
 func (p *CiphertextCiphertextEqualityProofData) ProofType() ProofType {
 	return ProofTypeCiphertextCiphertextEquality
 }
-func (p *CiphertextCiphertextEqualityProofData) Bytes() []byte { return concatFields(p.fields()...) }
-func (p *CiphertextCiphertextEqualityProofData) Verify() error { return verifyProofData(p) }
-func (p *CiphertextCiphertextEqualityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
+func (p *CiphertextCiphertextEqualityProofData) Bytes() []byte                  { return podBytes(p) }
+func (p *CiphertextCiphertextEqualityProofData) ContextData() ProofContext      { return &p.Context }
+func (p *CiphertextCiphertextEqualityProofData) Verify() error                  { return verifyProofData(p) }
+func (p *CiphertextCiphertextEqualityProofData) UnmarshalBinary(b []byte) error { return podRead(p, b) }
+
+func (c *CiphertextCiphertextEqualityProofContext) Bytes() []byte { return podBytes(c) }
+func (c *CiphertextCiphertextEqualityProofContext) UnmarshalBinary(b []byte) error {
+	return podRead(c, b)
 }
 
 // CiphertextCommitmentEqualityProofData proves that ciphertext and commitment
@@ -111,16 +116,17 @@ type CiphertextCommitmentEqualityProofContext struct {
 	Commitment encryption.PedersenCommitment
 }
 
-func (p *CiphertextCommitmentEqualityProofData) fields() [][]byte {
-	return [][]byte{p.Context.Pubkey[:], p.Context.Ciphertext[:], p.Context.Commitment[:], p.Proof[:]}
-}
 func (p *CiphertextCommitmentEqualityProofData) ProofType() ProofType {
 	return ProofTypeCiphertextCommitmentEquality
 }
-func (p *CiphertextCommitmentEqualityProofData) Bytes() []byte { return concatFields(p.fields()...) }
-func (p *CiphertextCommitmentEqualityProofData) Verify() error { return verifyProofData(p) }
-func (p *CiphertextCommitmentEqualityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
+func (p *CiphertextCommitmentEqualityProofData) Bytes() []byte                  { return podBytes(p) }
+func (p *CiphertextCommitmentEqualityProofData) ContextData() ProofContext      { return &p.Context }
+func (p *CiphertextCommitmentEqualityProofData) Verify() error                  { return verifyProofData(p) }
+func (p *CiphertextCommitmentEqualityProofData) UnmarshalBinary(b []byte) error { return podRead(p, b) }
+
+func (c *CiphertextCommitmentEqualityProofContext) Bytes() []byte { return podBytes(c) }
+func (c *CiphertextCommitmentEqualityProofContext) UnmarshalBinary(b []byte) error {
+	return podRead(c, b)
 }
 
 // PubkeyValidityProofData proves knowledge of the ElGamal secret key for
@@ -134,15 +140,14 @@ type PubkeyValidityProofContext struct {
 	Pubkey encryption.ElGamalPubkey
 }
 
-func (p *PubkeyValidityProofData) fields() [][]byte {
-	return [][]byte{p.Context.Pubkey[:], p.Proof[:]}
-}
-func (p *PubkeyValidityProofData) ProofType() ProofType { return ProofTypePubkeyValidity }
-func (p *PubkeyValidityProofData) Bytes() []byte        { return concatFields(p.fields()...) }
-func (p *PubkeyValidityProofData) Verify() error        { return verifyProofData(p) }
-func (p *PubkeyValidityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
-}
+func (p *PubkeyValidityProofData) ProofType() ProofType           { return ProofTypePubkeyValidity }
+func (p *PubkeyValidityProofData) Bytes() []byte                  { return podBytes(p) }
+func (p *PubkeyValidityProofData) ContextData() ProofContext      { return &p.Context }
+func (p *PubkeyValidityProofData) Verify() error                  { return verifyProofData(p) }
+func (p *PubkeyValidityProofData) UnmarshalBinary(b []byte) error { return podRead(p, b) }
+
+func (c *PubkeyValidityProofContext) Bytes() []byte                  { return podBytes(c) }
+func (c *PubkeyValidityProofContext) UnmarshalBinary(b []byte) error { return podRead(c, b) }
 
 // PercentageWithCapProofData proves a fee computation: the percentage amount
 // is either the correct percentage of the transfer amount or the cap.
@@ -158,16 +163,14 @@ type PercentageWithCapProofContext struct {
 	MaxValue             PodU64
 }
 
-func (p *PercentageWithCapProofData) fields() [][]byte {
-	return [][]byte{p.Context.PercentageCommitment[:], p.Context.DeltaCommitment[:],
-		p.Context.ClaimedCommitment[:], p.Context.MaxValue[:], p.Proof[:]}
-}
-func (p *PercentageWithCapProofData) ProofType() ProofType { return ProofTypePercentageWithCap }
-func (p *PercentageWithCapProofData) Bytes() []byte        { return concatFields(p.fields()...) }
-func (p *PercentageWithCapProofData) Verify() error        { return verifyProofData(p) }
-func (p *PercentageWithCapProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
-}
+func (p *PercentageWithCapProofData) ProofType() ProofType           { return ProofTypePercentageWithCap }
+func (p *PercentageWithCapProofData) Bytes() []byte                  { return podBytes(p) }
+func (p *PercentageWithCapProofData) ContextData() ProofContext      { return &p.Context }
+func (p *PercentageWithCapProofData) Verify() error                  { return verifyProofData(p) }
+func (p *PercentageWithCapProofData) UnmarshalBinary(b []byte) error { return podRead(p, b) }
+
+func (c *PercentageWithCapProofContext) Bytes() []byte                  { return podBytes(c) }
+func (c *PercentageWithCapProofContext) UnmarshalBinary(b []byte) error { return podRead(c, b) }
 
 // MaxRangeProofCommitments is the number of commitment slots in a batched
 // range proof context; unused slots stay zero.
@@ -179,13 +182,8 @@ type BatchedRangeProofContext struct {
 	BitLengths  [MaxRangeProofCommitments]uint8
 }
 
-func (c *BatchedRangeProofContext) fields() [][]byte {
-	fs := make([][]byte, 0, len(c.Commitments)+1)
-	for i := range c.Commitments {
-		fs = append(fs, c.Commitments[i][:])
-	}
-	return append(fs, c.BitLengths[:])
-}
+func (c *BatchedRangeProofContext) Bytes() []byte                  { return podBytes(c) }
+func (c *BatchedRangeProofContext) UnmarshalBinary(b []byte) error { return podRead(c, b) }
 
 // BatchedRangeProofU64Data proves that each committed amount fits in its bit
 // length, with the bit lengths summing to 64.
@@ -194,15 +192,11 @@ type BatchedRangeProofU64Data struct {
 	Proof   RangeProofU64
 }
 
-func (p *BatchedRangeProofU64Data) fields() [][]byte {
-	return append(p.Context.fields(), p.Proof[:])
-}
-func (p *BatchedRangeProofU64Data) ProofType() ProofType { return ProofTypeBatchedRangeProofU64 }
-func (p *BatchedRangeProofU64Data) Bytes() []byte        { return concatFields(p.fields()...) }
-func (p *BatchedRangeProofU64Data) Verify() error        { return verifyProofData(p) }
-func (p *BatchedRangeProofU64Data) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
-}
+func (p *BatchedRangeProofU64Data) ProofType() ProofType           { return ProofTypeBatchedRangeProofU64 }
+func (p *BatchedRangeProofU64Data) Bytes() []byte                  { return podBytes(p) }
+func (p *BatchedRangeProofU64Data) ContextData() ProofContext      { return &p.Context }
+func (p *BatchedRangeProofU64Data) Verify() error                  { return verifyProofData(p) }
+func (p *BatchedRangeProofU64Data) UnmarshalBinary(b []byte) error { return podRead(p, b) }
 
 // BatchedRangeProofU128Data proves that each committed amount fits in its bit
 // length, with the bit lengths summing to 128.
@@ -211,15 +205,11 @@ type BatchedRangeProofU128Data struct {
 	Proof   RangeProofU128
 }
 
-func (p *BatchedRangeProofU128Data) fields() [][]byte {
-	return append(p.Context.fields(), p.Proof[:])
-}
-func (p *BatchedRangeProofU128Data) ProofType() ProofType { return ProofTypeBatchedRangeProofU128 }
-func (p *BatchedRangeProofU128Data) Bytes() []byte        { return concatFields(p.fields()...) }
-func (p *BatchedRangeProofU128Data) Verify() error        { return verifyProofData(p) }
-func (p *BatchedRangeProofU128Data) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
-}
+func (p *BatchedRangeProofU128Data) ProofType() ProofType           { return ProofTypeBatchedRangeProofU128 }
+func (p *BatchedRangeProofU128Data) Bytes() []byte                  { return podBytes(p) }
+func (p *BatchedRangeProofU128Data) ContextData() ProofContext      { return &p.Context }
+func (p *BatchedRangeProofU128Data) Verify() error                  { return verifyProofData(p) }
+func (p *BatchedRangeProofU128Data) UnmarshalBinary(b []byte) error { return podRead(p, b) }
 
 // BatchedRangeProofU256Data proves that each committed amount fits in its bit
 // length, with the bit lengths summing to 256.
@@ -228,15 +218,11 @@ type BatchedRangeProofU256Data struct {
 	Proof   RangeProofU256
 }
 
-func (p *BatchedRangeProofU256Data) fields() [][]byte {
-	return append(p.Context.fields(), p.Proof[:])
-}
-func (p *BatchedRangeProofU256Data) ProofType() ProofType { return ProofTypeBatchedRangeProofU256 }
-func (p *BatchedRangeProofU256Data) Bytes() []byte        { return concatFields(p.fields()...) }
-func (p *BatchedRangeProofU256Data) Verify() error        { return verifyProofData(p) }
-func (p *BatchedRangeProofU256Data) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
-}
+func (p *BatchedRangeProofU256Data) ProofType() ProofType           { return ProofTypeBatchedRangeProofU256 }
+func (p *BatchedRangeProofU256Data) Bytes() []byte                  { return podBytes(p) }
+func (p *BatchedRangeProofU256Data) ContextData() ProofContext      { return &p.Context }
+func (p *BatchedRangeProofU256Data) Verify() error                  { return verifyProofData(p) }
+func (p *BatchedRangeProofU256Data) UnmarshalBinary(b []byte) error { return podRead(p, b) }
 
 // GroupedCiphertext2HandlesValidityProofData proves that a 2-handle grouped
 // ciphertext is a valid encryption under both public keys.
@@ -251,19 +237,19 @@ type GroupedCiphertext2HandlesValidityProofContext struct {
 	GroupedCiphertext encryption.GroupedElGamalCiphertext2
 }
 
-func (p *GroupedCiphertext2HandlesValidityProofData) fields() [][]byte {
-	return [][]byte{p.Context.FirstPubkey[:], p.Context.SecondPubkey[:],
-		p.Context.GroupedCiphertext[:], p.Proof[:]}
-}
 func (p *GroupedCiphertext2HandlesValidityProofData) ProofType() ProofType {
 	return ProofTypeGroupedCiphertext2HandlesValidity
 }
-func (p *GroupedCiphertext2HandlesValidityProofData) Bytes() []byte {
-	return concatFields(p.fields()...)
-}
-func (p *GroupedCiphertext2HandlesValidityProofData) Verify() error { return verifyProofData(p) }
+func (p *GroupedCiphertext2HandlesValidityProofData) Bytes() []byte             { return podBytes(p) }
+func (p *GroupedCiphertext2HandlesValidityProofData) ContextData() ProofContext { return &p.Context }
+func (p *GroupedCiphertext2HandlesValidityProofData) Verify() error             { return verifyProofData(p) }
 func (p *GroupedCiphertext2HandlesValidityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
+	return podRead(p, b)
+}
+
+func (c *GroupedCiphertext2HandlesValidityProofContext) Bytes() []byte { return podBytes(c) }
+func (c *GroupedCiphertext2HandlesValidityProofContext) UnmarshalBinary(b []byte) error {
+	return podRead(c, b)
 }
 
 // BatchedGroupedCiphertext2HandlesValidityProofData proves that a lo/hi pair
@@ -281,21 +267,23 @@ type BatchedGroupedCiphertext2HandlesValidityProofContext struct {
 	GroupedCiphertextHi encryption.GroupedElGamalCiphertext2
 }
 
-func (p *BatchedGroupedCiphertext2HandlesValidityProofData) fields() [][]byte {
-	return [][]byte{p.Context.FirstPubkey[:], p.Context.SecondPubkey[:],
-		p.Context.GroupedCiphertextLo[:], p.Context.GroupedCiphertextHi[:], p.Proof[:]}
-}
 func (p *BatchedGroupedCiphertext2HandlesValidityProofData) ProofType() ProofType {
 	return ProofTypeBatchedGroupedCiphertext2HandlesValidity
 }
-func (p *BatchedGroupedCiphertext2HandlesValidityProofData) Bytes() []byte {
-	return concatFields(p.fields()...)
+func (p *BatchedGroupedCiphertext2HandlesValidityProofData) Bytes() []byte { return podBytes(p) }
+func (p *BatchedGroupedCiphertext2HandlesValidityProofData) ContextData() ProofContext {
+	return &p.Context
 }
 func (p *BatchedGroupedCiphertext2HandlesValidityProofData) Verify() error {
 	return verifyProofData(p)
 }
 func (p *BatchedGroupedCiphertext2HandlesValidityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
+	return podRead(p, b)
+}
+
+func (c *BatchedGroupedCiphertext2HandlesValidityProofContext) Bytes() []byte { return podBytes(c) }
+func (c *BatchedGroupedCiphertext2HandlesValidityProofContext) UnmarshalBinary(b []byte) error {
+	return podRead(c, b)
 }
 
 // GroupedCiphertext3HandlesValidityProofData proves that a 3-handle grouped
@@ -312,19 +300,19 @@ type GroupedCiphertext3HandlesValidityProofContext struct {
 	GroupedCiphertext encryption.GroupedElGamalCiphertext3
 }
 
-func (p *GroupedCiphertext3HandlesValidityProofData) fields() [][]byte {
-	return [][]byte{p.Context.FirstPubkey[:], p.Context.SecondPubkey[:],
-		p.Context.ThirdPubkey[:], p.Context.GroupedCiphertext[:], p.Proof[:]}
-}
 func (p *GroupedCiphertext3HandlesValidityProofData) ProofType() ProofType {
 	return ProofTypeGroupedCiphertext3HandlesValidity
 }
-func (p *GroupedCiphertext3HandlesValidityProofData) Bytes() []byte {
-	return concatFields(p.fields()...)
-}
-func (p *GroupedCiphertext3HandlesValidityProofData) Verify() error { return verifyProofData(p) }
+func (p *GroupedCiphertext3HandlesValidityProofData) Bytes() []byte             { return podBytes(p) }
+func (p *GroupedCiphertext3HandlesValidityProofData) ContextData() ProofContext { return &p.Context }
+func (p *GroupedCiphertext3HandlesValidityProofData) Verify() error             { return verifyProofData(p) }
 func (p *GroupedCiphertext3HandlesValidityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
+	return podRead(p, b)
+}
+
+func (c *GroupedCiphertext3HandlesValidityProofContext) Bytes() []byte { return podBytes(c) }
+func (c *GroupedCiphertext3HandlesValidityProofContext) UnmarshalBinary(b []byte) error {
+	return podRead(c, b)
 }
 
 // BatchedGroupedCiphertext3HandlesValidityProofData proves that a lo/hi pair
@@ -343,54 +331,30 @@ type BatchedGroupedCiphertext3HandlesValidityProofContext struct {
 	GroupedCiphertextHi encryption.GroupedElGamalCiphertext3
 }
 
-func (p *BatchedGroupedCiphertext3HandlesValidityProofData) fields() [][]byte {
-	return [][]byte{p.Context.FirstPubkey[:], p.Context.SecondPubkey[:], p.Context.ThirdPubkey[:],
-		p.Context.GroupedCiphertextLo[:], p.Context.GroupedCiphertextHi[:], p.Proof[:]}
-}
 func (p *BatchedGroupedCiphertext3HandlesValidityProofData) ProofType() ProofType {
 	return ProofTypeBatchedGroupedCiphertext3HandlesValidity
 }
-func (p *BatchedGroupedCiphertext3HandlesValidityProofData) Bytes() []byte {
-	return concatFields(p.fields()...)
+func (p *BatchedGroupedCiphertext3HandlesValidityProofData) Bytes() []byte { return podBytes(p) }
+func (p *BatchedGroupedCiphertext3HandlesValidityProofData) ContextData() ProofContext {
+	return &p.Context
 }
 func (p *BatchedGroupedCiphertext3HandlesValidityProofData) Verify() error {
 	return verifyProofData(p)
 }
 func (p *BatchedGroupedCiphertext3HandlesValidityProofData) UnmarshalBinary(b []byte) error {
-	return readFields(b, p.fields()...)
+	return podRead(p, b)
 }
 
-func concatFields(fields ...[]byte) []byte {
-	n := 0
-	for _, f := range fields {
-		n += len(f)
-	}
-	out := make([]byte, 0, n)
-	for _, f := range fields {
-		out = append(out, f...)
-	}
-	return out
-}
-
-func readFields(b []byte, fields ...[]byte) error {
-	n := 0
-	for _, f := range fields {
-		n += len(f)
-	}
-	if len(b) != n {
-		return fmt.Errorf("zk: guest returned %d-byte proof data, want %d", len(b), n)
-	}
-	for _, f := range fields {
-		copy(f, b[:len(f)])
-		b = b[len(f):]
-	}
-	return nil
+func (c *BatchedGroupedCiphertext3HandlesValidityProofContext) Bytes() []byte { return podBytes(c) }
+func (c *BatchedGroupedCiphertext3HandlesValidityProofContext) UnmarshalBinary(b []byte) error {
+	return podRead(c, b)
 }
 
 // ProofType tags proof data for verification.
 type ProofType uint32
 
 const (
+	ProofTypeUninitialized                            ProofType = 0
 	ProofTypeZeroCiphertext                           ProofType = 1
 	ProofTypeCiphertextCiphertextEquality             ProofType = 2
 	ProofTypeCiphertextCommitmentEquality             ProofType = 3
@@ -404,3 +368,46 @@ const (
 	ProofTypeGroupedCiphertext3HandlesValidity        ProofType = 11
 	ProofTypeBatchedGroupedCiphertext3HandlesValidity ProofType = 12
 )
+
+// ErrInvalidProofType reports a proof type outside the range the program
+// defines. It mirrors the Rust `ProofTypeError::InvalidProofType`.
+var ErrInvalidProofType = errors.New("zk: invalid proof type")
+
+// IsValid reports whether t tags one of the proof types the program verifies.
+// ProofTypeUninitialized is not valid: it tags the absence of a proof.
+func (t ProofType) IsValid() bool {
+	return t >= ProofTypeZeroCiphertext && t <= ProofTypeBatchedGroupedCiphertext3HandlesValidity
+}
+
+func (t ProofType) String() string {
+	switch t {
+	case ProofTypeUninitialized:
+		return "Uninitialized"
+	case ProofTypeZeroCiphertext:
+		return "ZeroCiphertext"
+	case ProofTypeCiphertextCiphertextEquality:
+		return "CiphertextCiphertextEquality"
+	case ProofTypeCiphertextCommitmentEquality:
+		return "CiphertextCommitmentEquality"
+	case ProofTypePubkeyValidity:
+		return "PubkeyValidity"
+	case ProofTypePercentageWithCap:
+		return "PercentageWithCap"
+	case ProofTypeBatchedRangeProofU64:
+		return "BatchedRangeProofU64"
+	case ProofTypeBatchedRangeProofU128:
+		return "BatchedRangeProofU128"
+	case ProofTypeBatchedRangeProofU256:
+		return "BatchedRangeProofU256"
+	case ProofTypeGroupedCiphertext2HandlesValidity:
+		return "GroupedCiphertext2HandlesValidity"
+	case ProofTypeBatchedGroupedCiphertext2HandlesValidity:
+		return "BatchedGroupedCiphertext2HandlesValidity"
+	case ProofTypeGroupedCiphertext3HandlesValidity:
+		return "GroupedCiphertext3HandlesValidity"
+	case ProofTypeBatchedGroupedCiphertext3HandlesValidity:
+		return "BatchedGroupedCiphertext3HandlesValidity"
+	default:
+		return fmt.Sprintf("ProofType(%d)", uint32(t))
+	}
+}
