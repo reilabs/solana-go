@@ -44,10 +44,18 @@ func (s *ProofContextState) UnmarshalBinary(b []byte) error {
 	if meta.ProofType != proofdata.ProofTypeUninitialized && !meta.ProofType.IsValid() {
 		return fmt.Errorf("%w %d", proofdata.ErrInvalidProofType, meta.ProofType)
 	}
+	context := b[ProofContextStateMetadataSize:]
+	// Check lengths of proof context for actual proofs
+	// Unitialized proof-context lengths are unchecked.
+	if meta.ProofType.IsValid() {
+		want := len(proofdata.NewProofData(meta.ProofType).ContextData().Bytes())
+		if len(context) != want {
+			return fmt.Errorf("zk: %s proof context is %d bytes, want %d", meta.ProofType, len(context), want)
+		}
+	}
 	s.ContextStateAuthority = meta.ContextStateAuthority
 	s.ProofType = meta.ProofType
-	// Context is raw bytes by definition, copy them in.
-	s.Context = bytes.Clone(b[ProofContextStateMetadataSize:])
+	s.Context = bytes.Clone(context)
 	return nil
 }
 
