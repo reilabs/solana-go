@@ -54,7 +54,7 @@ type ContextStateInfo struct {
 	ContextStateAuthority solana.PublicKey
 }
 
-// CloseContextState builds a CloseContextState instruction.
+// CloseContextStateInstruction builds a CloseContextState instruction.
 func CloseContextStateInstruction(
 	contextStateInfo ContextStateInfo,
 	destination solana.PublicKey,
