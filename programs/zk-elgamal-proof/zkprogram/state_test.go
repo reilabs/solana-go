@@ -119,19 +119,12 @@ func TestProofContextStateRejects(t *testing.T) {
 		}
 	})
 
-	// UnmarshalBinary hands back the context unparsed, so a context of the
-	// wrong size is caught where the caller names the type.
 	t.Run("context of the wrong size", func(t *testing.T) {
 		t.Parallel()
 		data := make([]byte, ProofContextStateMetadataSize+16)
 		data[32] = byte(proofdata.ProofTypePubkeyValidity)
 		var state ProofContextState
-		if err := state.UnmarshalBinary(data); err != nil {
-			t.Fatalf("UnmarshalBinary: %v", err)
-		}
-
-		var context proofdata.PubkeyValidityProofContext
-		if err := context.UnmarshalBinary(state.Context); err == nil || !strings.Contains(err.Error(), "want 32") {
+		if err := state.UnmarshalBinary(data); err == nil || !strings.Contains(err.Error(), "want 32") {
 			t.Fatalf("err = %v, want it to mention %q", err, "want 32")
 		}
 	})
