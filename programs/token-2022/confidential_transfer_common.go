@@ -4,8 +4,22 @@ import (
 	"fmt"
 
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/zkprogram"
+)
+
+// Encoded sizes of the field types appearing in ConfidentialTransfer
+// instruction data.
+const (
+	accountKeySize        = solana.PublicKeyLength
+	elGamalPubkeySize     = len(encryption.ElGamalPubkey{})
+	elGamalCiphertextSize = len(encryption.ElGamalCiphertext{})
+	aeCiphertextSize      = len(encryption.AeCiphertext{})
+	u64Size               = 8
+	u8Size                = 1
+	boolSize              = 1
+	proofOffsetSize       = 1
 )
 
 // newConfidentialTransferInstruction assembles a ConfidentialTransfer sub-instruction
