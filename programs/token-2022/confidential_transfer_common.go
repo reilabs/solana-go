@@ -95,7 +95,7 @@ func resolveProofLocation[T proofdata.ProofData](
 	if location.IsInstructionOffset() {
 		return solana.Meta(solana.SysVarInstructionsPubkey), location.InstructionOffset(), nil
 	}
-	// Context-state reciept return zero offset and the account holding the receipt
+	// Context-state receipt return zero offset and the account holding the receipt
 	return solana.Meta(location.ContextStateAccount()), 0, nil
 }
 
