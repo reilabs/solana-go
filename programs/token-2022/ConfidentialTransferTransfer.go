@@ -3,6 +3,7 @@ package token2022
 import (
 	"fmt"
 
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
@@ -106,10 +107,9 @@ func NewConfidentialTransferTransferInstruction(
 		CiphertextValidityProofInstructionOffset: ciphertextValidityProofInstructionOffset,
 		RangeProofInstructionOffset:              rangeProofInstructionOffset,
 	}
-	raw, _ := data.MarshalBinary()
 	return newConfidentialTransferInstruction(
 		ConfidentialTransfer_Transfer,
-		raw,
+		&data,
 		accounts,
 		authority,
 		multisigSigners,
@@ -163,4 +163,12 @@ func (d *ConfidentialTransferTransferData) UnmarshalBinary(b []byte) error {
 	d.CiphertextValidityProofInstructionOffset = int8(b[165])
 	d.RangeProofInstructionOffset = int8(b[166])
 	return nil
+}
+
+func (d ConfidentialTransferTransferData) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+	return ctMarshalData(encoder, d)
+}
+
+func (d *ConfidentialTransferTransferData) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+	return ctUnmarshalData(decoder, d)
 }

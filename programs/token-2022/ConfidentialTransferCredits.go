@@ -1,6 +1,7 @@
 package token2022
 
 import (
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 )
 
@@ -11,6 +12,7 @@ func NewConfidentialTransferEnableConfidentialCreditsInstruction(
 	multisigSigners []solana.PublicKey,
 ) *ConfidentialTransferExtension {
 	return newBalanceCreditsInstruction(ConfidentialTransfer_EnableConfidentialCredits,
+		&ConfidentialTransferEnableConfidentialCreditsData{},
 		tokenAccount, authority, multisigSigners)
 }
 
@@ -21,6 +23,7 @@ func NewConfidentialTransferDisableConfidentialCreditsInstruction(
 	multisigSigners []solana.PublicKey,
 ) *ConfidentialTransferExtension {
 	return newBalanceCreditsInstruction(ConfidentialTransfer_DisableConfidentialCredits,
+		&ConfidentialTransferDisableConfidentialCreditsData{},
 		tokenAccount, authority, multisigSigners)
 }
 
@@ -31,6 +34,7 @@ func NewConfidentialTransferEnableNonConfidentialCreditsInstruction(
 	multisigSigners []solana.PublicKey,
 ) *ConfidentialTransferExtension {
 	return newBalanceCreditsInstruction(ConfidentialTransfer_EnableNonConfidentialCredits,
+		&ConfidentialTransferEnableNonConfidentialCreditsData{},
 		tokenAccount, authority, multisigSigners)
 }
 
@@ -41,18 +45,20 @@ func NewConfidentialTransferDisableNonConfidentialCreditsInstruction(
 	multisigSigners []solana.PublicKey,
 ) *ConfidentialTransferExtension {
 	return newBalanceCreditsInstruction(ConfidentialTransfer_DisableNonConfidentialCredits,
+		&ConfidentialTransferDisableNonConfidentialCreditsData{},
 		tokenAccount, authority, multisigSigners)
 }
 
 func newBalanceCreditsInstruction(
 	subInstruction uint8,
+	data ag_binary.EncoderDecoder,
 	tokenAccount solana.PublicKey,
 	authority solana.PublicKey,
 	multisigSigners []solana.PublicKey,
 ) *ConfidentialTransferExtension {
 	return newConfidentialTransferInstruction(
 		subInstruction,
-		nil,
+		data,
 		solana.AccountMetaSlice{
 			solana.Meta(tokenAccount).WRITE(),
 		},
@@ -60,3 +66,11 @@ func newBalanceCreditsInstruction(
 		multisigSigners,
 	)
 }
+
+// The balance credit sub-instructions carry no data.
+type (
+	ConfidentialTransferEnableConfidentialCreditsData     struct{ ctNoData }
+	ConfidentialTransferDisableConfidentialCreditsData    struct{ ctNoData }
+	ConfidentialTransferEnableNonConfidentialCreditsData  struct{ ctNoData }
+	ConfidentialTransferDisableNonConfidentialCreditsData struct{ ctNoData }
+)

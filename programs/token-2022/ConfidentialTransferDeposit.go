@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 )
 
@@ -19,10 +20,9 @@ func NewConfidentialTransferDepositInstruction(
 	multisigSigners []solana.PublicKey,
 ) *ConfidentialTransferExtension {
 	data := ConfidentialTransferDepositData{Amount: amount, Decimals: decimals}
-	raw, _ := data.MarshalBinary()
 	return newConfidentialTransferInstruction(
 		ConfidentialTransfer_Deposit,
-		raw,
+		&data,
 		solana.AccountMetaSlice{
 			solana.Meta(tokenAccount).WRITE(),
 			solana.Meta(mint),
@@ -56,4 +56,12 @@ func (d *ConfidentialTransferDepositData) UnmarshalBinary(b []byte) error {
 	d.Amount = binary.LittleEndian.Uint64(b[:8])
 	d.Decimals = b[8]
 	return nil
+}
+
+func (d ConfidentialTransferDepositData) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+	return ctMarshalData(encoder, d)
+}
+
+func (d *ConfidentialTransferDepositData) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+	return ctUnmarshalData(decoder, d)
 }

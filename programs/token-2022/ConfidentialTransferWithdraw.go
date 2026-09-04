@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
@@ -84,10 +85,9 @@ func NewConfidentialTransferWithdrawInstruction(
 		EqualityProofInstructionOffset: equalityProofInstructionOffset,
 		RangeProofInstructionOffset:    rangeProofInstructionOffset,
 	}
-	raw, _ := data.MarshalBinary()
 	return newConfidentialTransferInstruction(
 		ConfidentialTransfer_Withdraw,
-		raw,
+		&data,
 		accounts,
 		authority,
 		multisigSigners,
@@ -133,4 +133,12 @@ func (d *ConfidentialTransferWithdrawData) UnmarshalBinary(b []byte) error {
 	d.EqualityProofInstructionOffset = int8(b[45])
 	d.RangeProofInstructionOffset = int8(b[46])
 	return nil
+}
+
+func (d ConfidentialTransferWithdrawData) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+	return ctMarshalData(encoder, d)
+}
+
+func (d *ConfidentialTransferWithdrawData) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+	return ctUnmarshalData(decoder, d)
 }

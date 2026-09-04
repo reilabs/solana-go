@@ -15,7 +15,7 @@ func NewConfidentialTransferApproveAccountInstruction(
 ) *ConfidentialTransferExtension {
 	return newConfidentialTransferInstruction(
 		ConfidentialTransfer_ApproveAccount,
-		nil,
+		&ConfidentialTransferApproveAccountData{},
 		solana.AccountMetaSlice{
 			solana.Meta(accountToApprove).WRITE(),
 			solana.Meta(mint),
@@ -25,3 +25,7 @@ func NewConfidentialTransferApproveAccountInstruction(
 		nil,
 	)
 }
+
+// ConfidentialTransferApproveAccountData is the instruction data for
+// ConfidentialTransfer_ApproveAccount, which carries no data.
+type ConfidentialTransferApproveAccountData struct{ ctNoData }

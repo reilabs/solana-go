@@ -1,8 +1,10 @@
 package token2022
 
 import (
+	"encoding"
 	"fmt"
 
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
@@ -25,7 +27,7 @@ const (
 // newConfidentialTransferInstruction assembles a ConfidentialTransfer sub-instruction
 func newConfidentialTransferInstruction(
 	subInstruction uint8,
-	rawData []byte,
+	data ag_binary.EncoderDecoder,
 	accounts solana.AccountMetaSlice,
 	authority solana.PublicKey,
 	multisigSigners []solana.PublicKey,
@@ -36,15 +38,49 @@ func newConfidentialTransferInstruction(
 		authorityMeta.SIGNER()
 	}
 	ct_instruction := &ConfidentialTransferExtension{
-		SubInstruction: subInstruction,
-		RawData:        rawData,
-		Accounts:       append(accounts, authorityMeta),
-		Signers:        make(solana.AccountMetaSlice, 0, len(multisigSigners)),
+		BaseVariant: ag_binary.BaseVariant{
+			TypeID: ag_binary.TypeIDFromUint8(subInstruction),
+			Impl:   data,
+		},
+		Accounts: append(accounts, authorityMeta),
+		Signers:  make(solana.AccountMetaSlice, 0, len(multisigSigners)),
 	}
 	for _, signer := range multisigSigners {
 		ct_instruction.Signers = append(ct_instruction.Signers, solana.Meta(signer).SIGNER())
 	}
 	return ct_instruction
+}
+
+// ctMarshalData and ctUnmarshalData adapt the fixed-size MarshalBinary and
+// UnmarshalBinary implementations of the sub-instruction data structs to the
+// ag_binary interfaces the variant machinery dispatches on.
+func ctMarshalData(encoder *ag_binary.Encoder, d encoding.BinaryMarshaler) error {
+	b, err := d.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return encoder.WriteBytes(b, false)
+}
+
+func ctUnmarshalData(decoder *ag_binary.Decoder, d encoding.BinaryUnmarshaler) error {
+	b, err := decoder.ReadNBytes(decoder.Remaining())
+	if err != nil {
+		return err
+	}
+	return d.UnmarshalBinary(b)
+}
+
+// ctNoData is embedded by the data structs of sub-instructions that carry no
+// data beyond the sub-instruction byte.
+type ctNoData struct{}
+
+func (ctNoData) MarshalWithEncoder(*ag_binary.Encoder) error { return nil }
+
+func (*ctNoData) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+	if n := decoder.Remaining(); n != 0 {
+		return fmt.Errorf("token2022: ConfidentialTransfer sub-instruction takes no data, got %d bytes", n)
+	}
+	return nil
 }
 
 // resolveProofLocation resolves a proof location to the account the consuming

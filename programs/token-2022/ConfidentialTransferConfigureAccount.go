@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
@@ -62,11 +63,9 @@ func NewConfidentialTransferConfigureAccountInstruction(
 		MaximumPendingBalanceCreditCounter: maximumPendingBalanceCreditCounter,
 		ProofInstructionOffset:             proofInstructionOffset,
 	}
-	raw, _ := data.MarshalBinary()
-
 	return newConfidentialTransferInstruction(
 		ConfidentialTransfer_ConfigureAccount,
-		raw,
+		&data,
 		accounts,
 		authority,
 		multisigSigners,
@@ -106,4 +105,12 @@ func (d *ConfidentialTransferConfigureAccountData) UnmarshalBinary(b []byte) err
 	d.MaximumPendingBalanceCreditCounter = binary.LittleEndian.Uint64(b[36:44])
 	d.ProofInstructionOffset = int8(b[44])
 	return nil
+}
+
+func (d ConfidentialTransferConfigureAccountData) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+	return ctMarshalData(encoder, d)
+}
+
+func (d *ConfidentialTransferConfigureAccountData) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+	return ctUnmarshalData(decoder, d)
 }

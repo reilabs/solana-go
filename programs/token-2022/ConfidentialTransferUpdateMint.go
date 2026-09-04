@@ -3,6 +3,7 @@ package token2022
 import (
 	"fmt"
 
+	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 )
@@ -22,10 +23,9 @@ func NewConfidentialTransferUpdateMintInstruction(
 	if auditorElGamalPubkey != nil {
 		data.AuditorElGamalPubkey = *auditorElGamalPubkey
 	}
-	raw, _ := data.MarshalBinary()
 	return newConfidentialTransferInstruction(
 		ConfidentialTransfer_UpdateMint,
-		raw,
+		&data,
 		solana.AccountMetaSlice{solana.Meta(mint).WRITE()},
 		authority,
 		multisigSigners,
@@ -59,4 +59,12 @@ func (d *ConfidentialTransferUpdateMintData) UnmarshalBinary(b []byte) error {
 	d.AutoApproveNewAccounts = b[0] != 0
 	copy(d.AuditorElGamalPubkey[:], b[1:])
 	return nil
+}
+
+func (d ConfidentialTransferUpdateMintData) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
+	return ctMarshalData(encoder, d)
+}
+
+func (d *ConfidentialTransferUpdateMintData) UnmarshalWithDecoder(decoder *ag_binary.Decoder) error {
+	return ctUnmarshalData(decoder, d)
 }
