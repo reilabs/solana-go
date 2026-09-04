@@ -7,9 +7,27 @@ import (
 
 	ag_binary "github.com/gagliardetto/binary"
 	"github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/encryption"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/proofdata"
 	"github.com/gagliardetto/solana-go/programs/zk-elgamal-proof/zkprogram"
 )
+
+func ctAddr(b byte) solana.PublicKey {
+	var key solana.PublicKey
+	for i := range key {
+		key[i] = b
+	}
+	return key
+}
+
+// ctPattern fills n bytes the way the parity generator's pattern(seed, n) does.
+func ctPattern(seed byte, n int) []byte {
+	dst := make([]byte, n)
+	for i := range dst {
+		dst[i] = byte((i+int(seed))%251 + 1)
+	}
+	return dst
+}
 
 var (
 	ctTokenAccount       = ctAddr(10)
@@ -25,6 +43,11 @@ var (
 	ctContextRange       = ctAddr(25)
 	ctRegistry           = ctAddr(30)
 	ctPayer              = ctAddr(31)
+
+	ctAuditorPubkey      = (*encryption.ElGamalPubkey)(ctPattern(1, 32))
+	ctDecryptableBalance = encryption.AeCiphertext(ctPattern(2, 36))
+	ctCiphertextLo       = encryption.ElGamalCiphertext(ctPattern(3, 64))
+	ctCiphertextHi       = encryption.ElGamalCiphertext(ctPattern(4, 64))
 )
 
 const (
@@ -38,15 +61,15 @@ func TestConfidentialTransferDataRoundTrip(t *testing.T) {
 	instructions := []interface {
 		MarshalBinary() ([]byte, error)
 	}{
-		ConfidentialTransferInitializeMintData{Authority: ctAddr(1), AutoApproveNewAccounts: true, AuditorElGamalPubkey: [32]byte{2, 3}},
-		ConfidentialTransferUpdateMintData{AutoApproveNewAccounts: true, AuditorElGamalPubkey: [32]byte{4}},
-		ConfidentialTransferConfigureAccountData{DecryptableZeroBalance: [36]byte{5}, MaximumPendingBalanceCreditCounter: 77, ProofInstructionOffset: -3},
+		ConfidentialTransferInitializeMintData{Authority: ctAuthority, AutoApproveNewAccounts: true, AuditorElGamalPubkey: *ctAuditorPubkey},
+		ConfidentialTransferUpdateMintData{AutoApproveNewAccounts: true, AuditorElGamalPubkey: *ctAuditorPubkey},
+		ConfidentialTransferConfigureAccountData{DecryptableZeroBalance: ctDecryptableBalance, MaximumPendingBalanceCreditCounter: ctMaxPendingCounter, ProofInstructionOffset: -3},
 		ConfidentialTransferEmptyAccountData{ProofInstructionOffset: 1},
-		ConfidentialTransferDepositData{Amount: 123456789, Decimals: 6},
-		ConfidentialTransferWithdrawData{Amount: 42, Decimals: 9, NewDecryptableAvailableBalance: [36]byte{6}, EqualityProofInstructionOffset: 1, RangeProofInstructionOffset: 2},
-		ConfidentialTransferTransferData{NewSourceDecryptableAvailableBalance: [36]byte{7}, TransferAmountAuditorCiphertextLo: [64]byte{8}, TransferAmountAuditorCiphertextHi: [64]byte{9}, EqualityProofInstructionOffset: 1, CiphertextValidityProofInstructionOffset: 2, RangeProofInstructionOffset: 3},
-		ConfidentialTransferApplyPendingBalanceData{ExpectedPendingBalanceCreditCounter: 11, NewDecryptableAvailableBalance: [36]byte{10}},
-		ConfidentialTransferTransferWithFeeData{NewSourceDecryptableAvailableBalance: [36]byte{11}, TransferAmountAuditorCiphertextLo: [64]byte{12}, TransferAmountAuditorCiphertextHi: [64]byte{13}, EqualityProofInstructionOffset: 1, TransferAmountCiphertextValidityProofInstructionOffset: 2, FeeSigmaProofInstructionOffset: 3, FeeCiphertextValidityProofInstructionOffset: 4, RangeProofInstructionOffset: 5},
+		ConfidentialTransferDepositData{Amount: ctAmount, Decimals: ctDecimals},
+		ConfidentialTransferWithdrawData{Amount: ctAmount, Decimals: ctDecimals, NewDecryptableAvailableBalance: ctDecryptableBalance, EqualityProofInstructionOffset: 1, RangeProofInstructionOffset: 2},
+		ConfidentialTransferTransferData{NewSourceDecryptableAvailableBalance: ctDecryptableBalance, TransferAmountAuditorCiphertextLo: ctCiphertextLo, TransferAmountAuditorCiphertextHi: ctCiphertextHi, EqualityProofInstructionOffset: 1, CiphertextValidityProofInstructionOffset: 2, RangeProofInstructionOffset: 3},
+		ConfidentialTransferApplyPendingBalanceData{ExpectedPendingBalanceCreditCounter: ctMaxPendingCounter, NewDecryptableAvailableBalance: ctDecryptableBalance},
+		ConfidentialTransferTransferWithFeeData{NewSourceDecryptableAvailableBalance: ctDecryptableBalance, TransferAmountAuditorCiphertextLo: ctCiphertextLo, TransferAmountAuditorCiphertextHi: ctCiphertextHi, EqualityProofInstructionOffset: 1, TransferAmountCiphertextValidityProofInstructionOffset: 2, FeeSigmaProofInstructionOffset: 3, FeeCiphertextValidityProofInstructionOffset: 4, RangeProofInstructionOffset: 5},
 	}
 	for _, original := range instructions {
 		name := reflect.TypeOf(original).Name()
@@ -126,7 +149,7 @@ func TestConfidentialTransferDecodeRejectsMalformed(t *testing.T) {
 func TestConfidentialTransferOuterOffsetValidation(t *testing.T) {
 	t.Parallel()
 	_, err := NewConfidentialTransferConfigureAccountInstructions(
-		ctTokenAccount, ctMint, ctDecryptableBalance(), ctMaxPendingCounter,
+		ctTokenAccount, ctMint, ctDecryptableBalance, ctMaxPendingCounter,
 		ctAuthority, nil,
 		zkprogram.ProofLocationOffset(2, &proofdata.PubkeyValidityProofData{}))
 	if err == nil || !strings.Contains(err.Error(), "offset") {
@@ -134,7 +157,7 @@ func TestConfidentialTransferOuterOffsetValidation(t *testing.T) {
 	}
 
 	_, err = NewConfidentialTransferWithdrawInstructions(
-		ctTokenAccount, ctMint, ctAmount, ctDecimals, ctDecryptableBalance(),
+		ctTokenAccount, ctMint, ctAmount, ctDecimals, ctDecryptableBalance,
 		ctAuthority, nil,
 		zkprogram.ProofLocationOffset(1, &proofdata.CiphertextCommitmentEqualityProofData{}),
 		zkprogram.ProofLocationOffset(3, &proofdata.BatchedRangeProofU64Data{}))
@@ -145,7 +168,7 @@ func TestConfidentialTransferOuterOffsetValidation(t *testing.T) {
 	// Context state first, then offset: the offset instruction is the only
 	// appended one, so it must be 1.
 	instructions, err := NewConfidentialTransferWithdrawInstructions(
-		ctTokenAccount, ctMint, ctAmount, ctDecimals, ctDecryptableBalance(),
+		ctTokenAccount, ctMint, ctAmount, ctDecimals, ctDecryptableBalance,
 		ctAuthority, nil,
 		zkprogram.ProofLocationContextState[*proofdata.CiphertextCommitmentEqualityProofData](ctContextEquality),
 		zkprogram.ProofLocationOffset(1, &proofdata.BatchedRangeProofU64Data{}))
