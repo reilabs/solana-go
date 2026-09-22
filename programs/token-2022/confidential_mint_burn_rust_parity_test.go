@@ -55,8 +55,6 @@ func cmbBuilders() map[string]func() ([]solana.Instruction, error) {
 				zkprogram.ProofLocationContextStateAccount[*proofdata.BatchedRangeProofU128Data](ctContextRange),
 				ctDecryptableBalance)
 		},
-		// The instructions sysvar rides on the equality proof alone, so this
-		// case carries no sysvar account even though two proofs are siblings.
 		"mint_equality_context": func() ([]solana.Instruction, error) {
 			return NewConfidentialMintBurnMintInstructions(
 				ctTokenAccount, ctMint, ctCiphertextLo, ctCiphertextHi, ctAuthority, nil,

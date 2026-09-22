@@ -145,8 +145,6 @@ fn main() {
             )
             .unwrap(),
         ),
-        // The instructions sysvar rides on the equality proof alone, so this
-        // case carries no sysvar account even though two proofs are siblings.
         emit(
             "mint_equality_context",
             cmb::confidential_mint_with_split_proofs(
