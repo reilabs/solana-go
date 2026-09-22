@@ -26,41 +26,44 @@ func NewConfidentialMintBurnBurnInstructions(
 	ciphertextValidityProofDataLocation zkprogram.ProofLocation[*proofdata.BatchedGroupedCiphertext3HandlesValidityProofData],
 	rangeProofDataLocation zkprogram.ProofLocation[*proofdata.BatchedRangeProofU128Data],
 ) ([]solana.Instruction, error) {
-	if err := equalityProofDataLocation.Validate(); err != nil {
-		return nil, err
-	}
-	if err := ciphertextValidityProofDataLocation.Validate(); err != nil {
-		return nil, err
-	}
-	if err := rangeProofDataLocation.Validate(); err != nil {
-		return nil, err
-	}
-
 	accounts := solana.AccountMetaSlice{
 		solana.Meta(tokenAccount).WRITE(),
 		solana.Meta(mint).WRITE(),
 	}
-	// Sysvar is added iff the equality proof is inlined, regardless of the other proofs
-	// This is not desirable but matches pinned rust crate behaviour.
-	if equalityProofDataLocation.IsInstructionOffset() {
+	equalityProofAccount, equalityProofInstructionOffset, err := resolveProofLocation(equalityProofDataLocation)
+	if err != nil {
+		return nil, err
+	}
+	ciphertextValidityProofAccount, ciphertextValidityProofInstructionOffset, err := resolveProofLocation(ciphertextValidityProofDataLocation)
+	if err != nil {
+		return nil, err
+	}
+	rangeProofAccount, rangeProofInstructionOffset, err := resolveProofLocation(rangeProofDataLocation)
+	if err != nil {
+		return nil, err
+	}
+	if equalityProofInstructionOffset != 0 ||
+		ciphertextValidityProofInstructionOffset != 0 ||
+		rangeProofInstructionOffset != 0 {
 		accounts = append(accounts, solana.Meta(solana.SysVarInstructionsPubkey))
-	} else {
-		accounts = append(accounts, solana.Meta(equalityProofDataLocation.ContextStateAccount()))
 	}
-	if !ciphertextValidityProofDataLocation.IsInstructionOffset() {
-		accounts = append(accounts, solana.Meta(ciphertextValidityProofDataLocation.ContextStateAccount()))
+	if equalityProofInstructionOffset == 0 {
+		accounts = append(accounts, equalityProofAccount)
 	}
-	if !rangeProofDataLocation.IsInstructionOffset() {
-		accounts = append(accounts, solana.Meta(rangeProofDataLocation.ContextStateAccount()))
+	if ciphertextValidityProofInstructionOffset == 0 {
+		accounts = append(accounts, ciphertextValidityProofAccount)
+	}
+	if rangeProofInstructionOffset == 0 {
+		accounts = append(accounts, rangeProofAccount)
 	}
 
 	data := ConfidentialMintBurnBurnData{
 		NewDecryptableAvailableBalance:           newDecryptableAvailableBalance,
 		BurnAmountAuditorCiphertextLo:            burnAmountAuditorCiphertextLo,
 		BurnAmountAuditorCiphertextHi:            burnAmountAuditorCiphertextHi,
-		EqualityProofInstructionOffset:           equalityProofDataLocation.InstructionOffset(),
-		CiphertextValidityProofInstructionOffset: ciphertextValidityProofDataLocation.InstructionOffset(),
-		RangeProofInstructionOffset:              rangeProofDataLocation.InstructionOffset(),
+		EqualityProofInstructionOffset:           equalityProofInstructionOffset,
+		CiphertextValidityProofInstructionOffset: ciphertextValidityProofInstructionOffset,
+		RangeProofInstructionOffset:              rangeProofInstructionOffset,
 	}
 
 	inner := newConfidentialMintBurnSubInstruction(

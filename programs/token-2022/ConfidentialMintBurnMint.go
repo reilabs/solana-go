@@ -26,39 +26,43 @@ func NewConfidentialMintBurnMintInstructions(
 	rangeProofDataLocation zkprogram.ProofLocation[*proofdata.BatchedRangeProofU128Data],
 	newDecryptableSupply encryption.AeCiphertext,
 ) ([]solana.Instruction, error) {
-	if err := equalityProofDataLocation.Validate(); err != nil {
-		return nil, err
-	}
-	if err := ciphertextValidityProofDataLocation.Validate(); err != nil {
-		return nil, err
-	}
-	if err := rangeProofDataLocation.Validate(); err != nil {
-		return nil, err
-	}
-	// Sysvar is added iff the equality proof is inlined, regardless of the other proofs
-	// This is not desirable but matches pinned rust crate behaviour.
 	accounts := solana.AccountMetaSlice{
 		solana.Meta(tokenAccount).WRITE(),
 		solana.Meta(mint).WRITE(),
 	}
-	if equalityProofDataLocation.IsInstructionOffset() {
+	equalityProofAccount, equalityProofInstructionOffset, err := resolveProofLocation(equalityProofDataLocation)
+	if err != nil {
+		return nil, err
+	}
+	ciphertextValidityProofAccount, ciphertextValidityProofInstructionOffset, err := resolveProofLocation(ciphertextValidityProofDataLocation)
+	if err != nil {
+		return nil, err
+	}
+	rangeProofAccount, rangeProofInstructionOffset, err := resolveProofLocation(rangeProofDataLocation)
+	if err != nil {
+		return nil, err
+	}
+	if equalityProofInstructionOffset != 0 ||
+		ciphertextValidityProofInstructionOffset != 0 ||
+		rangeProofInstructionOffset != 0 {
 		accounts = append(accounts, solana.Meta(solana.SysVarInstructionsPubkey))
-	} else {
-		accounts = append(accounts, solana.Meta(equalityProofDataLocation.ContextStateAccount()))
 	}
-	if !ciphertextValidityProofDataLocation.IsInstructionOffset() {
-		accounts = append(accounts, solana.Meta(ciphertextValidityProofDataLocation.ContextStateAccount()))
+	if equalityProofInstructionOffset == 0 {
+		accounts = append(accounts, equalityProofAccount)
 	}
-	if !rangeProofDataLocation.IsInstructionOffset() {
-		accounts = append(accounts, solana.Meta(rangeProofDataLocation.ContextStateAccount()))
+	if ciphertextValidityProofInstructionOffset == 0 {
+		accounts = append(accounts, ciphertextValidityProofAccount)
+	}
+	if rangeProofInstructionOffset == 0 {
+		accounts = append(accounts, rangeProofAccount)
 	}
 	data := ConfidentialMintBurnMintData{
 		NewDecryptableSupply:                     newDecryptableSupply,
 		MintAmountAuditorCiphertextLo:            mintAmountAuditorCiphertextLo,
 		MintAmountAuditorCiphertextHi:            mintAmountAuditorCiphertextHi,
-		EqualityProofInstructionOffset:           equalityProofDataLocation.InstructionOffset(),
-		CiphertextValidityProofInstructionOffset: ciphertextValidityProofDataLocation.InstructionOffset(),
-		RangeProofInstructionOffset:              rangeProofDataLocation.InstructionOffset(),
+		EqualityProofInstructionOffset:           equalityProofInstructionOffset,
+		CiphertextValidityProofInstructionOffset: ciphertextValidityProofInstructionOffset,
+		RangeProofInstructionOffset:              rangeProofInstructionOffset,
 	}
 	inner := newConfidentialMintBurnSubInstruction(
 		ConfidentialMintBurn_Mint,

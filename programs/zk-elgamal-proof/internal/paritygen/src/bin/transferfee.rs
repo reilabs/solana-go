@@ -7,8 +7,8 @@ use {
     bytemuck::Zeroable,
     parity::{addr, emit, offset, pod, print_vectors},
     solana_pubkey::Pubkey,
-    solana_zk_sdk::encryption::pod::{auth_encryption::PodAeCiphertext, elgamal::PodElGamalPubkey},
-    solana_zk_sdk::zk_elgamal_proof_program::proof_data::*,
+    solana_zk_elgamal_proof_interface::proof_data::*,
+    solana_zk_sdk_pod::encryption::{auth_encryption::PodAeCiphertext, elgamal::PodElGamalPubkey},
     spl_token_2022_interface::extension::confidential_transfer_fee::instruction as ctf,
     spl_token_confidential_transfer_proof_extraction::instruction::ProofLocation,
 };
