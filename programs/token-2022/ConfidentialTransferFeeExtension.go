@@ -44,6 +44,7 @@ func (obj *ConfidentialTransferFeeExtension) SetAccounts(accounts []*ag_solanago
 	return nil
 }
 
+// GetAccounts emits Signers last; a layout that does not end with the signers must inline them into Accounts and leave Signers empty.
 func (slice ConfidentialTransferFeeExtension) GetAccounts() (accounts []*ag_solanago.AccountMeta) {
 	accounts = append(accounts, slice.Accounts...)
 	accounts = append(accounts, slice.Signers...)
