@@ -23,6 +23,13 @@ type confidentialExtension[D confidentialSubInstructionData] interface {
 	getRawData() []byte
 }
 
+// Explicitly declare the extensions as implementers of the interface.
+var (
+	_ confidentialExtension[ConfidentialTransferSubInstructionData]    = ConfidentialTransferExtension{}
+	_ confidentialExtension[ConfidentialMintBurnSubInstructionData]    = ConfidentialMintBurnExtension{}
+	_ confidentialExtension[ConfidentialTransferFeeSubInstructionData] = ConfidentialTransferFeeExtension{}
+)
+
 type confidentialSubInstruction[D confidentialSubInstructionData] struct {
 	name    string
 	newData func() D
