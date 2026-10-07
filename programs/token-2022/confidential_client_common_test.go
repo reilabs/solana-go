@@ -106,16 +106,31 @@ func clientData[T any](t *testing.T, instructions []solana.Instruction) T {
 
 // checkClientProofs checks the proofs of a client operation.
 func checkClientProofs(
-	t *testing.T, instructions []solana.Instruction, isInline bool, proofs []clientProof,
+	t *testing.T, instructions []solana.Instruction, proofsAreInline bool, proofs []clientProof, offsets []int8,
 ) []proofdata.ProofData {
 	t.Helper()
-	if !isInline {
+	if len(offsets) != len(proofs) {
+		t.Fatalf("got %d proof offsets, want one per proof (%d)", len(offsets), len(proofs))
+	}
+	for i, offset := range offsets {
+		want := int8(0)
+		if proofsAreInline {
+			want = int8(i + 1)
+		}
+		if offset != want {
+			t.Errorf("%s proof offset = %d, want %d", proofs[i].verifier, offset, want)
+		}
+	}
+	if !proofsAreInline {
 		if len(instructions) != 1 {
 			t.Fatalf("got %d instructions, want 1: no proof is generated for context state accounts", len(instructions))
 		}
 		// The program takes the context state accounts in proof order, so a
 		// client passing one in another proof's slot shows up out of order.
 		keys := solana.AccountMetaSlice(instructions[0].Accounts()).GetKeys()
+		if keys.Has(solana.SysVarInstructionsPubkey) {
+			t.Error("instructions sysvar present, want it only when a proof is inlined")
+		}
 		previous := -1
 		for _, proof := range proofs {
 			at := slices.Index(keys, proof.account)
@@ -134,10 +149,23 @@ func checkClientProofs(
 	if got, want := len(instructions), 1+len(proofs); got != want {
 		t.Fatalf("got %d instructions, want %d", got, want)
 	}
+	if !solana.AccountMetaSlice(instructions[0].Accounts()).GetKeys().Has(solana.SysVarInstructionsPubkey) {
+		t.Error("instructions sysvar missing, want it when a proof is inlined")
+	}
 	inlinedProofData := make([]proofdata.ProofData, len(proofs))
 	for i, proof := range proofs {
-		data, err := instructions[1+i].Data()
+		verify := instructions[1+i]
+		if got := verify.ProgramID(); !got.Equals(zkprogram.ProgramID) {
+			t.Errorf("%s verify program ID = %s, want %s", proof.verifier, got, zkprogram.ProgramID)
+		}
+		if got := len(verify.Accounts()); got != 0 {
+			t.Errorf("%s verify takes %d accounts, want none for an inlined proof", proof.verifier, got)
+		}
+		data, err := verify.Data()
 		require.NoError(t, err)
+		if got := zkprogram.ProofInstruction(data[0]); got != proof.verifier {
+			t.Errorf("verify instruction %d = %s, want %s", i, got, proof.verifier)
+		}
 		inlinedProofData[i] = proofdata.NewProofData(proofdata.ProofType(proof.verifier))
 		require.NoError(t, inlinedProofData[i].UnmarshalBinary(data[1:]))
 		require.NoError(t, inlinedProofData[i].Verify())

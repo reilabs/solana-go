@@ -24,7 +24,7 @@ func testClientRotateSupplyElGamalPubkey(t *testing.T, inline bool) {
 	if rotate.NewSupplyElGamalPubkey != newSupply.Pubkey {
 		t.Error("new supply ElGamal pubkey is not the one given")
 	}
-	checkClientProofs(t, instructions, inline, ciphertextEqualityProofs)
+	checkClientProofs(t, instructions, inline, ciphertextEqualityProofs, []int8{rotate.ProofInstructionOffset})
 }
 
 func testClientMint(t *testing.T, inline bool) {
@@ -39,7 +39,11 @@ func testClientMint(t *testing.T, inline bool) {
 	checkDecryptable(t, supplyAesKey, mint.NewDecryptableSupply, clientSupply+clientAmount)
 	checkCiphertexts(t, inline, auditor, clientAmount,
 		mint.MintAmountAuditorCiphertextLo, mint.MintAmountAuditorCiphertextHi)
-	checkClientProofs(t, instructions, inline, splitProofs)
+	checkClientProofs(t, instructions, inline, splitProofs, []int8{
+		mint.EqualityProofInstructionOffset,
+		mint.CiphertextValidityProofInstructionOffset,
+		mint.RangeProofInstructionOffset,
+	})
 }
 
 func testClientBurn(t *testing.T, inline bool) {
@@ -55,7 +59,11 @@ func testClientBurn(t *testing.T, inline bool) {
 		clientBalance-clientAmount)
 	checkCiphertexts(t, inline, auditor, clientAmount,
 		burn.BurnAmountAuditorCiphertextLo, burn.BurnAmountAuditorCiphertextHi)
-	checkClientProofs(t, instructions, inline, splitProofs)
+	checkClientProofs(t, instructions, inline, splitProofs, []int8{
+		burn.EqualityProofInstructionOffset,
+		burn.CiphertextValidityProofInstructionOffset,
+		burn.RangeProofInstructionOffset,
+	})
 }
 
 // TestConfidentialMintBurnClientMixedProofLocations checks the limitation

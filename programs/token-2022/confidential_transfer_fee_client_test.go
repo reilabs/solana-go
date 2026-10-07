@@ -29,7 +29,11 @@ func testClientWithdrawWithheldFromMint(t *testing.T, areProofsInline bool) {
 		ctDestination, ctMint, ctAuthority, nil, orNil(areProofsInline, &ctContextSingle), withheld,
 		authority, destination.Pubkey, ctDecryptableBalance)
 	require.NoError(t, err)
-	checkWithheldProof(t, instructions, areProofsInline, withheld, destination)
+	withdraw := clientData[*ConfidentialTransferFeeWithdrawWithheldTokensFromMintData](t, instructions)
+	if withdraw.NewDecryptableAvailableBalance != ctDecryptableBalance {
+		t.Error("new decryptable available balance is not the one given")
+	}
+	checkWithheldProof(t, instructions, areProofsInline, withheld, destination, withdraw.ProofInstructionOffset)
 }
 
 func testClientWithdrawWithheldFromAccounts(t *testing.T, areProofsInline bool) {
@@ -38,7 +42,14 @@ func testClientWithdrawWithheldFromAccounts(t *testing.T, areProofsInline bool) 
 		ctDestination, ctMint, ctAuthority, nil, orNil(areProofsInline, &ctContextSingle), withheld,
 		authority, destination.Pubkey, ctDecryptableBalance, ctfSources)
 	require.NoError(t, err)
-	checkWithheldProof(t, instructions, areProofsInline, withheld, destination)
+	withdraw := clientData[*ConfidentialTransferFeeWithdrawWithheldTokensFromAccountsData](t, instructions)
+	if withdraw.NewDecryptableAvailableBalance != ctDecryptableBalance {
+		t.Error("new decryptable available balance is not the one given")
+	}
+	if got, want := withdraw.NumTokenAccounts, uint8(len(ctfSources)); got != want {
+		t.Errorf("num token accounts = %d, want %d", got, want)
+	}
+	checkWithheldProof(t, instructions, areProofsInline, withheld, destination, withdraw.ProofInstructionOffset)
 	for _, source := range ctfSources {
 		if !solana.AccountMetaSlice(instructions[0].Accounts()).GetKeys().Has(source) {
 			t.Errorf("source account %s missing from the instruction accounts", source)
@@ -58,10 +69,10 @@ func makeWithheld(t *testing.T) (authority, destination *encryption.ElGamalKeypa
 // checkWithheldProof checks the proof of a withdraw withheld operation.
 func checkWithheldProof(
 	t *testing.T, instructions []solana.Instruction, areProofsInline bool,
-	withheld encryption.ElGamalCiphertext, destination *encryption.ElGamalKeypair,
+	withheld encryption.ElGamalCiphertext, destination *encryption.ElGamalKeypair, offset int8,
 ) {
 	t.Helper()
-	inlinedProofData := checkClientProofs(t, instructions, areProofsInline, ciphertextEqualityProofs)
+	inlinedProofData := checkClientProofs(t, instructions, areProofsInline, ciphertextEqualityProofs, []int8{offset})
 	if !areProofsInline {
 		return
 	}

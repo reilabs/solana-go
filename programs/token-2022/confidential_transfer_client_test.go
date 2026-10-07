@@ -27,7 +27,8 @@ func testClientConfigureAccount(t *testing.T, areProofsInline bool) {
 	require.NoError(t, err)
 	configure := clientData[*ConfidentialTransferConfigureAccountData](t, instructions)
 	checkDecryptable(t, aesKey, configure.DecryptableZeroBalance, 0)
-	checkClientProofs(t, instructions, areProofsInline, pubkeyValidityProofs)
+	checkClientProofs(t, instructions, areProofsInline, pubkeyValidityProofs,
+		[]int8{configure.ProofInstructionOffset})
 }
 
 func testClientEmptyAccount(t *testing.T, areProofsInline bool) {
@@ -35,7 +36,9 @@ func testClientEmptyAccount(t *testing.T, areProofsInline bool) {
 	instructions, err := ConfidentialTransferEmptyAccount(
 		ctTokenAccount, ctAuthority, nil, orNil(areProofsInline, &ctContextSingle), NewEmptyAccountInfo(empty), kp)
 	require.NoError(t, err)
-	checkClientProofs(t, instructions, areProofsInline, zeroCiphertextProofs)
+	emptyData := clientData[*ConfidentialTransferEmptyAccountData](t, instructions)
+	checkClientProofs(t, instructions, areProofsInline, zeroCiphertextProofs,
+		[]int8{emptyData.ProofInstructionOffset})
 }
 
 func testClientWithdraw(t *testing.T, areProofsInline bool) {
@@ -51,7 +54,8 @@ func testClientWithdraw(t *testing.T, areProofsInline bool) {
 	}
 	checkDecryptable(t, aesKey, withdraw.NewDecryptableAvailableBalance,
 		clientBalance-clientAmount)
-	checkClientProofs(t, instructions, areProofsInline, withdrawProofs)
+	checkClientProofs(t, instructions, areProofsInline, withdrawProofs,
+		[]int8{withdraw.EqualityProofInstructionOffset, withdraw.RangeProofInstructionOffset})
 }
 
 func testClientTransfer(t *testing.T, areProofsInline bool) {
@@ -67,7 +71,11 @@ func testClientTransfer(t *testing.T, areProofsInline bool) {
 		clientBalance-clientAmount)
 	checkCiphertexts(t, areProofsInline, auditor, clientAmount,
 		transfer.TransferAmountAuditorCiphertextLo, transfer.TransferAmountAuditorCiphertextHi)
-	checkClientProofs(t, instructions, areProofsInline, splitProofs)
+	checkClientProofs(t, instructions, areProofsInline, splitProofs, []int8{
+		transfer.EqualityProofInstructionOffset,
+		transfer.CiphertextValidityProofInstructionOffset,
+		transfer.RangeProofInstructionOffset,
+	})
 }
 
 func testClientTransferWithFee(t *testing.T, areProofsInline bool) {
@@ -80,7 +88,18 @@ func testClientTransferWithFee(t *testing.T, areProofsInline bool) {
 		clientAmount, NewTransferAccountInfo(spender), kp, aesKey,
 		destination.Pubkey, &auditor.Pubkey, withheld.Pubkey, 250, 50)
 	require.NoError(t, err)
-	checkClientProofs(t, instructions, areProofsInline, transferWithFeeProofs)
+	transfer := clientData[*ConfidentialTransferTransferWithFeeData](t, instructions)
+	checkDecryptable(t, aesKey, transfer.NewSourceDecryptableAvailableBalance,
+		clientBalance-clientAmount)
+	checkCiphertexts(t, areProofsInline, auditor, clientAmount,
+		transfer.TransferAmountAuditorCiphertextLo, transfer.TransferAmountAuditorCiphertextHi)
+	checkClientProofs(t, instructions, areProofsInline, transferWithFeeProofs, []int8{
+		transfer.EqualityProofInstructionOffset,
+		transfer.TransferAmountCiphertextValidityProofInstructionOffset,
+		transfer.FeeSigmaProofInstructionOffset,
+		transfer.FeeCiphertextValidityProofInstructionOffset,
+		transfer.RangeProofInstructionOffset,
+	})
 }
 
 // TestConfidentialTransferClientMixedProofLocations checks the limitation that an operation cannot
